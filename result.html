@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>p-booth — Your Strip</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="site-header" style="padding-bottom:0;">
+    <span class="eyebrow">♡ 인생네컷 스타일 ♡</span>
+    <h1><span class="highlight">p-booth</span></h1>
+    <div class="header-rule"></div>
+  </header>
+
+  <div class="steps">
+    <div class="step done"><div class="step-num">✓</div><span>Layout</span></div>
+    <div class="divider"></div>
+    <div class="step done"><div class="step-num">✓</div><span>Capture</span></div>
+    <div class="divider"></div>
+    <div class="step active"><div class="step-num">3</div><span>Download</span></div>
+  </div>
+
+  <main>
+    <div class="result-layout">
+
+      <div class="section-head fade-in" style="margin:0;">
+        <h2 id="resultHeading">Your Photo Strip</h2>
+        <p id="resultSub">Looking great! Save it before it disappears ✨</p>
+      </div>
+
+      <!-- Processing -->
+      <div class="processing-state" id="processingState">
+        <div class="spinner"></div>
+        <p>Developing your film… ♡</p>
+      </div>
+
+      <!-- Strip output -->
+      <div class="strip-frame fade-in hidden" id="stripFrame">
+        <canvas id="resultCanvas"></canvas>
+      </div>
+
+      <p class="confetti-msg hidden" id="successMsg">
+        ✨ Save it, share it, stick it on everything!
+      </p>
+
+      <!-- Action buttons -->
+      <div class="result-actions hidden" id="resultActions">
+        <button class="btn btn-primary btn-lg" id="downloadBtn" onclick="downloadStrip()">
+          ⬇ Download PNG
+        </button>
+        <button class="btn btn-purple btn-lg" onclick="retakePhotos()">
+          ↺ Retake Photos
+        </button>
+        <a class="btn btn-ghost btn-lg" href="index.html">
+          ⊞ New Layout
+        </a>
+      </div>
+
+      <!-- Error -->
+      <div class="hidden" id="errorState" style="text-align:center;padding:40px;">
+        <div style="font-size:2.5rem;margin-bottom:16px;">📂</div>
+        <p style="color:var(--text-muted);font-size:.82rem;font-weight:700;margin-bottom:20px;">
+          No photos found. Please complete a capture session first.
+        </p>
+        <a href="index.html" class="btn btn-primary">← Choose a Layout</a>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="js/canvas.js"></script>
+  <script>
+    const LAYOUTS_RES = {
+      CUT4:  { id: 'CUT4',  name: 'Classic 4-Cut', kr: '인생4컷',    shots: 4, format: '4 × 1 strip', cols: 1, rows: 4, type: 'strip',       accentColor: '#ff6b9d' },
+      CUT2:  { id: 'CUT2',  name: '2-Cut Wide',    kr: '인생2컷',    shots: 2, format: '2 × 1 strip', cols: 1, rows: 2, type: 'strip',       accentColor: '#a855f7' },
+      WIDE4: { id: 'WIDE4', name: 'Wide 4-Cut',    kr: '4컷 와이드', shots: 4, format: '2×2 grid',    cols: 2, rows: 2, type: 'grid2x2',     accentColor: '#2dd4bf' },
+      CUT8:  { id: 'CUT8',  name: 'Double Strip',  kr: '인생8컷',    shots: 8, format: '2 strips × 4',cols: 2, rows: 4, type: 'doublestrip', accentColor: '#fbbf24' },
+    };
+
+    let generatedCanvas = null;
+    let currentLayout   = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const layoutId   = sessionStorage.getItem('photobooth_layout');
+      const photosJson = sessionStorage.getItem('photobooth_photos');
+
+      if (!layoutId || !photosJson || !LAYOUTS_RES[layoutId]) { showError(); return; }
+      currentLayout = LAYOUTS_RES[layoutId];
+
+      let photos;
+      try { photos = JSON.parse(photosJson); } catch { showError(); return; }
+      if (!photos?.length) { showError(); return; }
+
+      document.getElementById('resultHeading').textContent = `Your ${currentLayout.name} Strip`;
+      document.getElementById('resultSub').textContent =
+        `${photos.filter(Boolean).length} photos · ${currentLayout.kr} · ${currentLayout.format}`;
+
+      try {
+        generatedCanvas = await generatePhotoStrip(photos, currentLayout);
+        const rc = document.getElementById('resultCanvas');
+        rc.width  = generatedCanvas.width;
+        rc.height = generatedCanvas.height;
+        rc.getContext('2d').drawImage(generatedCanvas, 0, 0);
+        showResult();
+      } catch (err) {
+        console.error(err);
+        showError();
+      }
+    });
+
+    function showResult() {
+      document.getElementById('processingState').classList.add('hidden');
+      document.getElementById('stripFrame').classList.remove('hidden');
+      document.getElementById('resultActions').classList.remove('hidden');
+      document.getElementById('successMsg').classList.remove('hidden');
+    }
+    function showError() {
+      document.getElementById('processingState').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+    }
+
+    function downloadStrip() {
+      if (!generatedCanvas) return;
+      const btn = document.getElementById('downloadBtn');
+      btn.textContent = '✓ Saved!';
+      btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+      setTimeout(() => {
+        btn.innerHTML = '⬇ Download PNG';
+        btn.style.background = '';
+      }, 2000);
+      const ts = new Date().toISOString().slice(0,10).replace(/-/g,'');
+      downloadCanvas(generatedCanvas, `pbooth-${currentLayout?.id || 'strip'}-${ts}.png`);
+    }
+
+    function retakePhotos() {
+      sessionStorage.removeItem('photobooth_photos');
+      window.location.href = 'camera.html';
+    }
+  </script>
+</body>
+</html>

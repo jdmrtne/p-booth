@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>p-booth — Camera</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .camera-viewfinder video { transform: scaleX(-1); }
+  </style>
+</head>
+<body>
+
+  <header class="site-header" style="padding-bottom:0;">
+    <span class="eyebrow">♡ 인생네컷 스타일 ♡</span>
+    <h1><span class="highlight">p-booth</span></h1>
+    <div class="header-rule"></div>
+  </header>
+
+  <a class="back-link" href="index.html">← Change Layout</a>
+
+  <div class="steps">
+    <div class="step done"><div class="step-num">✓</div><span>Layout</span></div>
+    <div class="divider"></div>
+    <div class="step active"><div class="step-num">2</div><span>Capture</span></div>
+    <div class="divider"></div>
+    <div class="step"><div class="step-num">3</div><span>Download</span></div>
+  </div>
+
+  <!-- MODE TOGGLE -->
+  <div class="mode-toggle-wrap">
+    <div class="mode-toggle" id="modeToggle">
+      <button class="mode-btn active" id="modeCameraBtn" onclick="switchMode('camera')">
+        📷 Camera
+      </button>
+      <button class="mode-btn" id="modeUploadBtn" onclick="switchMode('upload')">
+        🖼️ Upload Photos
+      </button>
+    </div>
+  </div>
+
+  <main>
+    <div class="camera-layout">
+
+      <!-- LEFT: Viewfinder / Upload -->
+      <div class="camera-main fade-in">
+
+        <!-- CAMERA MODE -->
+        <div id="cameraModeView">
+          <div class="camera-viewfinder" id="cameraArea">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="snapshot" style="display:none;"></canvas>
+
+            <div class="vf-corner tl"></div>
+            <div class="vf-corner tr"></div>
+            <div class="vf-corner bl"></div>
+            <div class="vf-corner br"></div>
+
+            <div class="countdown-overlay" id="countdownOverlay">
+              <div class="countdown-number" id="countdownNumber">3</div>
+              <div class="countdown-label" id="countdownLabel">Smile!</div>
+            </div>
+
+            <div class="flash-overlay" id="flashOverlay"></div>
+
+            <div class="ready-state" id="readyState"
+                 style="position:absolute;inset:0;background:rgba(10,0,20,.82);backdrop-filter:blur(4px);z-index:5;">
+              <div class="big-icon">📸</div>
+              <h2>Ready to Shoot!</h2>
+              <p id="readyDesc">Press Start to begin your session.</p>
+              <div class="pose-count-badge" id="poseBadge">4 shots · 인생4컷</div>
+            </div>
+
+            <div class="permission-error" id="permissionError">
+              <div class="icon">🚫</div>
+              <h3>Camera Blocked</h3>
+              <p>Please allow camera access in your browser settings, then reload the page.</p>
+              <button class="btn btn-secondary" onclick="window.location.reload()">Reload</button>
+            </div>
+          </div>
+
+          <div class="shot-progress">
+            <div class="shot-bar-track">
+              <div class="shot-bar-fill" id="shotBarFill"></div>
+            </div>
+            <div class="shot-labels">
+              <span class="shot-label-current" id="shotLabelCurrent">Ready to start</span>
+              <span class="shot-label-total" id="shotLabelTotal">of —</span>
+            </div>
+          </div>
+
+          <div class="status-msg" id="statusMsg">Press Start Session to begin</div>
+          <div class="mobile-thumbs" id="mobileThumbs"></div>
+
+          <div class="camera-controls">
+            <button class="btn btn-primary btn-lg" id="startBtn" style="flex:1;">
+              ▶ Start Session
+            </button>
+            <a href="index.html" class="btn btn-secondary btn-lg" style="padding:15px 18px;" data-tooltip="Change layout">⊞</a>
+          </div>
+        </div>
+
+        <!-- UPLOAD MODE -->
+        <div id="uploadModeView" style="display:none;">
+          <div class="upload-mode-container">
+            <div class="upload-header">
+              <div class="upload-header-icon">🖼️</div>
+              <div>
+                <h3 id="uploadTitle">Upload Your Photos</h3>
+                <p id="uploadSubtitle">Select photos from your device</p>
+              </div>
+            </div>
+
+            <div class="upload-slots-grid" id="uploadSlotsGrid"></div>
+
+            <!-- Bulk upload button -->
+            <div class="upload-bulk-wrap">
+              <button class="btn btn-secondary upload-bulk-btn" id="uploadAllBtn" onclick="triggerBulkUpload()">
+                📁 Select All Photos at Once
+              </button>
+              <input type="file" id="bulkFileInput" accept="image/*" multiple style="display:none;" onchange="handleBulkUpload(event)">
+            </div>
+
+            <div class="upload-progress-wrap" id="uploadProgressWrap" style="display:none;">
+              <div class="upload-progress-bar">
+                <div class="upload-progress-fill" id="uploadProgressFill"></div>
+              </div>
+              <p class="upload-progress-label" id="uploadProgressLabel">0 of 0 photos selected</p>
+            </div>
+
+            <button class="btn btn-primary btn-lg" id="uploadContinueBtn" disabled onclick="continueFromUpload()" style="margin-top:16px;width:100%;opacity:.5;">
+              ✦ Generate Strip →
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Sidebar -->
+      <div class="camera-sidebar fade-in" style="animation-delay:.15s;">
+
+        <div class="sidebar-panel">
+          <h3>Selected Layout</h3>
+          <div class="layout-badge">
+            <div class="layout-badge-icon" id="layoutBadgeIcon">인생4컷</div>
+            <div class="layout-badge-info">
+              <div class="name" id="layoutBadgeName">Classic 4-Cut</div>
+              <div class="sub" id="layoutBadgeSub">4 shots · 4 × 1 strip</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strip Color Preview -->
+        <div class="sidebar-panel">
+          <h3>Strip Style</h3>
+          <div class="sidebar-strip-style" id="sidebarStripStyle">
+            <div class="strip-color-dot" id="sidebarColorDot"></div>
+            <span id="sidebarColorName">White</span>
+            <span class="sidebar-text-preview" id="sidebarTextPreview"></span>
+          </div>
+          <a href="index.html" class="btn-edit-style">✎ Edit style</a>
+        </div>
+
+        <div class="sidebar-panel">
+          <h3>Captured Shots</h3>
+          <div id="thumbnailsGrid" class="thumbnails-grid cols-1"></div>
+        </div>
+
+        <div class="sidebar-panel" style="background:transparent;border-style:dashed;border-color:rgba(255,107,157,.15);">
+          <h3>Posing Tips</h3>
+          <ul class="tips-list" style="list-style:none;display:flex;flex-direction:column;gap:9px;">
+            <li style="display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:var(--text-muted);font-weight:600;line-height:1.5;">
+              <span style="color:var(--pink);flex-shrink:0;">♡</span>
+              Face the camera, eyes on the lens
+            </li>
+            <li style="display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:var(--text-muted);font-weight:600;line-height:1.5;">
+              <span style="color:var(--pink);flex-shrink:0;">✦</span>
+              Strike a different pose each shot
+            </li>
+            <li style="display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:var(--text-muted);font-weight:600;line-height:1.5;">
+              <span style="color:var(--pink);flex-shrink:0;">★</span>
+              Good lighting = great strip!
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <script src="js/camera.js"></script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>p-booth — Choose Your Layout</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <span class="eyebrow">♡ 인생네컷 스타일 ♡</span>
+    <h1><span class="highlight">p-booth</span></h1>
+    <p class="subtitle">Korean-style photo booth experience</p>
+    <p class="kr-label">사진 촬영 전에 레이아웃을 선택하세요</p>
+    <div class="header-rule"></div>
+  </header>
+
+  <div class="steps">
+    <div class="step active"><div class="step-num">1</div><span>Layout</span></div>
+    <div class="divider"></div>
+    <div class="step"><div class="step-num">2</div><span>Capture</span></div>
+    <div class="divider"></div>
+    <div class="step"><div class="step-num">3</div><span>Download</span></div>
+  </div>
+
+  <main class="page-wrapper">
+    <div class="section-head fade-in">
+      <h2>Select a Layout</h2>
+      <p>Choose your photo strip format — just like at the Life4Cuts booth!</p>
+    </div>
+
+    <div id="layoutGrid" class="layout-grid stagger"></div>
+
+    <!-- CUSTOMIZE PANEL -->
+    <div id="customizePanel" class="customize-panel hidden">
+      <div class="customize-inner">
+
+        <div class="customize-header">
+          <div class="customize-title">
+            <span class="customize-icon">🎨</span>
+            <div>
+              <h3>Customize Your Strip</h3>
+              <p>Pick a color &amp; add personal text</p>
+            </div>
+          </div>
+          <div class="selected-layout-badge" id="selectedLayoutBadge"></div>
+        </div>
+
+        <!-- Strip Color -->
+        <div class="customize-section">
+          <label class="customize-label">Strip Background Color</label>
+          <div class="color-swatches" id="colorSwatches">
+            <button class="color-swatch selected" data-color="#ffffff" data-name="White" style="background:#ffffff;" title="White"></button>
+            <button class="color-swatch" data-color="#ffe0ec" data-name="Blush" style="background:#ffe0ec;" title="Blush Pink"></button>
+            <button class="color-swatch" data-color="#f0e6ff" data-name="Lavender" style="background:#f0e6ff;" title="Lavender"></button>
+            <button class="color-swatch" data-color="#d6f5f0" data-name="Mint" style="background:#d6f5f0;" title="Mint"></button>
+            <button class="color-swatch" data-color="#ffecd9" data-name="Peach" style="background:#ffecd9;" title="Peach"></button>
+            <button class="color-swatch" data-color="#d4ecff" data-name="Sky" style="background:#d4ecff;" title="Sky Blue"></button>
+            <button class="color-swatch" data-color="#fff3c2" data-name="Lemon" style="background:#fff3c2;" title="Lemon"></button>
+            <button class="color-swatch" data-color="#fce4f8" data-name="Lilac" style="background:#fce4f8;" title="Lilac"></button>
+          </div>
+          <p class="color-name-label" id="colorNameLabel">White</p>
+        </div>
+
+        <!-- Mini Preview -->
+        <div class="customize-section">
+          <label class="customize-label">Preview</label>
+          <div class="strip-color-preview">
+            <div class="preview-strip" id="previewStrip">
+              <div class="preview-bar top" id="previewBarTop"></div>
+              <div class="preview-photos" id="previewPhotos">
+                <div class="preview-photo-slot"></div>
+                <div class="preview-photo-slot"></div>
+                <div class="preview-photo-slot"></div>
+                <div class="preview-photo-slot"></div>
+              </div>
+              <div class="preview-footer" id="previewFooter">
+                <span id="previewText">p-booth ♡</span>
+              </div>
+              <div class="preview-bar bottom" id="previewBarBottom"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Text -->
+        <div class="customize-section">
+          <label class="customize-label" for="customTextInput">
+            Text on Strip <span style="color:var(--text-light);font-weight:600;">(optional)</span>
+          </label>
+          <div class="text-input-wrap">
+            <input
+              type="text"
+              id="customTextInput"
+              class="custom-text-input"
+              placeholder="e.g. BFFs 4ever ♡ • 2025.01.01"
+              maxlength="40"
+            >
+            <span class="char-counter" id="charCounter">0/40</span>
+          </div>
+          <div class="text-suggestions">
+            <span class="text-sug-label">Quick ideas:</span>
+            <button class="text-sug" onclick="setCustomText('best friends ♡')">best friends ♡</button>
+            <button class="text-sug" onclick="setCustomText('memories 🌸')">memories 🌸</button>
+            <button class="text-sug" onclick="setCustomText(getTodayStr())">today's date</button>
+            <button class="text-sug" onclick="setCustomText('인생네컷 ✦')">인생네컷 ✦</button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-lg continue-btn" id="continueBtn" onclick="continueToCamera()">
+          <span>✦</span> Continue →
+        </button>
+
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/layout.js"></script>
+</body>
+</html>
