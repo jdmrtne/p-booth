@@ -11,96 +11,160 @@
     body { display: flex; flex-direction: column; }
     main { flex: 1; overflow: hidden; min-height: 0; }
     .camera-layout { height: 100%; overflow: hidden; }
-    .camera-main { display: flex; flex-direction: column; height: 100%; overflow: hidden; min-height: 0; }
+    .camera-main { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
     .camera-viewfinder { flex: 1; min-height: 0; aspect-ratio: unset !important; }
+    canvas#snapshot { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none; }
 
-    /* ── Left panel: compact customize ── */
+    /* Upload/Rearrange views must scroll so all slots are reachable */
+    #uploadModeView  { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+    #rearrangeView   { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+    #cameraModeView  { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+
     .sidebar-customize { display: flex; flex-direction: column; gap: 9px; }
-    .sidebar-color-grid {
-      display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      gap: 5px;
-    }
-    .sidebar-swatch {
-      width: 100%; aspect-ratio: 1; border-radius: 50%;
-      border: 2px solid transparent; cursor: pointer;
-      transition: transform .15s, border-color .15s; outline: none;
-    }
+    .sidebar-color-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+    .sidebar-swatch { width: 100%; aspect-ratio: 1; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform .15s, border-color .15s; outline: none; }
     .sidebar-swatch:hover { transform: scale(1.2); }
-    .sidebar-swatch.selected {
-      border-color: var(--pink) !important; transform: scale(1.18);
-      box-shadow: 0 0 0 2px rgba(255,107,157,.3);
-    }
+    .sidebar-swatch.selected { border-color: var(--pink) !important; transform: scale(1.18); box-shadow: 0 0 0 2px rgba(255,107,157,.3); }
     .sidebar-swatch[data-color="#ffffff"] { border-color: #ddd; }
-    .sidebar-color-name {
-      font-size: .65rem; font-weight: 700; color: var(--text-muted);
-      letter-spacing: .02em; text-align: right;
-    }
-    .sidebar-field-label {
-      font-size: .6rem; font-weight: 800; color: var(--text-muted);
-      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px;
-    }
-    .sidebar-input, .sidebar-date-input {
-      width: 100%; padding: 6px 9px; border-radius: 8px;
-      border: 1.5px solid rgba(168,85,247,.18);
-      background: rgba(255,255,255,.6); font-size: .72rem;
-      font-family: inherit; color: var(--text); outline: none;
-      box-sizing: border-box; transition: border-color .2s;
-    }
+    .sidebar-color-name { font-size: .65rem; font-weight: 700; color: var(--text-muted); letter-spacing: .02em; text-align: right; }
+    .sidebar-field-label { font-size: .6rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+    .sidebar-input, .sidebar-date-input { width: 100%; padding: 6px 9px; border-radius: 8px; border: 1.5px solid rgba(168,85,247,.18); background: rgba(255,255,255,.6); font-size: .72rem; font-family: inherit; color: var(--text); outline: none; box-sizing: border-box; transition: border-color .2s; }
     .sidebar-input:focus, .sidebar-date-input:focus { border-color: var(--pink); }
     .sidebar-quick-btns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-    .sidebar-quick-btn {
-      padding: 3px 8px; border-radius: 20px;
-      border: 1.5px solid rgba(255,107,157,.3);
-      background: rgba(255,107,157,.07); color: var(--pink);
-      font-size: .6rem; font-weight: 700; cursor: pointer;
-      transition: background .15s;
-    }
+    .sidebar-quick-btn { padding: 3px 8px; border-radius: 20px; border: 1.5px solid rgba(255,107,157,.3); background: rgba(255,107,157,.07); color: var(--pink); font-size: .6rem; font-weight: 700; cursor: pointer; transition: background .15s; }
     .sidebar-quick-btn:hover { background: rgba(255,107,157,.15); }
     .sidebar-divider { border: none; border-top: 1px dashed rgba(168,85,247,.15); margin: 4px 0; }
 
-    /* ── Right panel: preview fills height ── */
     #panelPreview { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-    #panelPreview .live-preview-wrap {
-      flex: 1; min-height: 0; overflow: hidden;
-      display: flex; align-items: center; justify-content: center;
-    }
-    #panelPreview #liveStripCanvas {
-      max-width: 100%; max-height: 100%; width: auto !important; height: auto !important;
-      display: block;
-    }
+    #panelPreview .live-preview-wrap { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    #panelPreview #liveStripCanvas { max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; display: block; }
 
-    /* ── Drag-and-drop ── */
     .upload-slot[draggable="true"] { cursor: grab; }
     .upload-slot[draggable="true"]:active { cursor: grabbing; }
     .upload-slot.dragging { opacity: .4; transform: scale(.96); border-style: dashed; border-color: var(--pink); }
     .upload-slot.drag-over { border-color: var(--pink); background: rgba(255,107,157,.12); transform: scale(1.04); box-shadow: 0 0 0 3px rgba(255,107,157,.25); }
-    .drag-handle {
-      position: absolute; top: 5px; left: 5px; z-index: 10;
-      width: 18px; height: 18px; border-radius: 4px;
-      background: rgba(0,0,0,.38); color: #fff;
-      display: none; align-items: center; justify-content: center;
-      font-size: 10px; cursor: grab; pointer-events: none;
-    }
+    .drag-handle { position: absolute; top: 5px; left: 5px; z-index: 10; width: 18px; height: 18px; border-radius: 4px; background: rgba(0,0,0,.38); color: #fff; display: none; align-items: center; justify-content: center; font-size: 10px; cursor: grab; pointer-events: none; }
     .upload-slot.filled .drag-handle { display: flex; }
-    .upload-slot-reorder-hint {
-      font-size: .63rem; color: var(--text-muted); font-weight: 600;
-      text-align: center; padding: 4px 0 0; display: none;
-    }
+    .upload-slot-reorder-hint { font-size: .63rem; color: var(--text-muted); font-weight: 600; text-align: center; padding: 4px 0 0; display: none; }
     .upload-slot-reorder-hint.visible { display: block; }
 
-    /* Keep left/right panels from overflowing; allow internal scroll only on left customize */
     .camera-left-panel  { overflow-y: auto; }
     .camera-right-panel { overflow: hidden; }
+    .camera-left-panel .sidebar-panel, .camera-right-panel .sidebar-panel { padding: 12px; }
+    .camera-left-panel .sidebar-panel h3, .camera-right-panel .sidebar-panel h3 { margin-bottom: 8px; }
 
-    /* Compact sidebar panels in narrow columns */
-    .camera-left-panel  .sidebar-panel,
-    .camera-right-panel .sidebar-panel { padding: 12px; }
-    .camera-left-panel  .sidebar-panel h3,
-    .camera-right-panel .sidebar-panel h3 { margin-bottom: 8px; }
+    /* ─── PAUSE BUTTON ─── */
+    .btn-pause {
+      background: rgba(255,107,157,.1);
+      color: var(--pink);
+      border: 2px solid var(--pink-border);
+      flex-shrink: 0;
+    }
+    .btn-pause:hover { background: rgba(255,107,157,.2); }
+    .btn-pause.is-paused {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white; border-color: transparent;
+      box-shadow: 0 4px 18px rgba(249,115,22,.45);
+      animation: pausePulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pausePulse {
+      0%,100% { box-shadow: 0 4px 18px rgba(249,115,22,.4); }
+      50%     { box-shadow: 0 6px 30px rgba(249,115,22,.7); }
+    }
+
+    /* ─── PAUSED OVERLAY (over viewfinder) ─── */
+    #pausedOverlay {
+      position: absolute; inset: 0; z-index: 14;
+      background: rgba(10,0,20,.85);
+      backdrop-filter: blur(5px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px; text-align: center; padding: 20px;
+    }
+    #pausedOverlay.visible { display: flex; }
+    .paused-icon  { font-size: 3.2rem; animation: float 3s ease-in-out infinite; }
+    .paused-title { font-size: 1.25rem; font-weight: 900; color: white; }
+    .paused-sub   { font-size: 0.75rem; font-weight: 600; color: rgba(255,255,255,.55); max-width: 240px; line-height: 1.6; }
+    .paused-resume-btn {
+      margin-top: 6px; padding: 12px 30px; border-radius: 50px;
+      background: linear-gradient(135deg, var(--pink), #e0378a);
+      color: white; border: none; font-weight: 800; font-size: 0.84rem;
+      cursor: pointer; box-shadow: 0 4px 18px rgba(255,107,157,.4);
+      font-family: var(--font-ui); transition: all .2s;
+    }
+    .paused-resume-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(255,107,157,.6); }
+    .paused-resume-btn:active { transform: scale(0.97); }
+
+    /* ─── LANDSCAPE OVERLAY ─── */
+    #landscapeOverlay {
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(10,0,24,.97);
+      backdrop-filter: blur(16px) saturate(1.2);
+      display: none;
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px; text-align: center; padding: 40px;
+    }
+    #landscapeOverlay.visible { display: flex; }
+    .ls-phone-wrap {
+      position: relative; width: 76px; height: 120px; margin-bottom: 6px;
+    }
+    .ls-phone {
+      width: 100%; height: 100%;
+      border: 3px solid rgba(255,107,157,.6);
+      border-radius: 14px;
+      background: rgba(255,107,157,.07);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      animation: lsTilt 2.4s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    @keyframes lsTilt {
+      0%, 25%  { transform: rotate(0deg); }
+      60%, 85% { transform: rotate(-90deg); }
+      100%     { transform: rotate(0deg); }
+    }
+    .ls-arrow {
+      position: absolute; top: 50%; right: -26px;
+      font-size: 1.3rem; color: var(--pink-light);
+      animation: lsArrow 2.4s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    @keyframes lsArrow {
+      0%,25%   { opacity: 0; transform: translateY(-50%) translateX(-5px); }
+      60%,85%  { opacity: 1; transform: translateY(-50%) translateX(0); }
+      100%     { opacity: 0; transform: translateY(-50%) translateX(-5px); }
+    }
+    .ls-title {
+      font-size: 1.4rem; font-weight: 900;
+      background: linear-gradient(135deg, var(--pink), var(--purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .ls-sub {
+      font-size: 0.82rem; font-weight: 600;
+      color: rgba(255,255,255,.52); max-width: 260px; line-height: 1.7;
+    }
+    .ls-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,107,157,.14); border: 1.5px solid rgba(255,107,157,.3);
+      color: var(--pink-light); font-size: 0.68rem; font-weight: 800;
+      padding: 5px 14px; border-radius: 20px; letter-spacing: .05em;
+    }
   </style>
 </head>
 <body>
+
+  <!-- ─── LANDSCAPE ORIENTATION OVERLAY ─── -->
+  <div id="landscapeOverlay">
+    <div class="ls-phone-wrap">
+      <div class="ls-phone">📷</div>
+      <div class="ls-arrow">↻</div>
+    </div>
+    <div class="ls-title">Rotate Your Device</div>
+    <p class="ls-sub">Landscape mode gives you a wider, better-framed photo for your strip</p>
+    <div class="ls-badge">✦ Rotate to landscape to continue</div>
+  </div>
 
   <nav class="top-bar">
     <a class="top-bar-logo" href="index.html">p-booth</a>
@@ -116,24 +180,18 @@
     </div>
   </nav>
 
-  <!-- MODE TOGGLE -->
-  <div class="mode-toggle-wrap">
+  <div class="mode-toggle-wrap" id="modeToggleWrap">
     <div class="mode-toggle" id="modeToggle">
-      <button class="mode-btn active" id="modeCameraBtn" onclick="switchMode('camera')">
-        📷 Camera
-      </button>
-      <button class="mode-btn" id="modeUploadBtn" onclick="switchMode('upload')">
-        🖼️ Upload Photos
-      </button>
+      <button class="mode-btn active" id="modeCameraBtn" onclick="switchMode('camera')">📷 Camera</button>
+      <button class="mode-btn" id="modeUploadBtn" onclick="switchMode('upload')">🖼️ Upload Photos</button>
     </div>
   </div>
 
   <main>
     <div class="camera-layout">
 
-      <!-- ══════════ LEFT PANEL: Customize ══════════ -->
+      <!-- LEFT PANEL -->
       <div class="camera-left-panel">
-
         <div class="sidebar-panel">
           <h3>Selected Layout</h3>
           <div class="layout-badge">
@@ -144,101 +202,90 @@
             </div>
           </div>
         </div>
-
         <div class="sidebar-panel">
           <h3>🎨 Customize Strip</h3>
           <div class="sidebar-customize">
-
-            <!-- Color swatches -->
             <div>
               <div class="sidebar-field-label">Background</div>
               <div class="sidebar-color-grid" id="sidebarColorGrid">
-                <button class="sidebar-swatch selected" data-color="#ffffff" data-name="White"       style="background:#ffffff;" title="White"></button>
-                <button class="sidebar-swatch"          data-color="#ffe0ec" data-name="Blush"       style="background:#ffe0ec;" title="Blush"></button>
-                <button class="sidebar-swatch"          data-color="#f0e6ff" data-name="Lavender"    style="background:#f0e6ff;" title="Lavender"></button>
-                <button class="sidebar-swatch"          data-color="#d6f5f0" data-name="Mint"        style="background:#d6f5f0;" title="Mint"></button>
-                <button class="sidebar-swatch"          data-color="#ffecd9" data-name="Peach"       style="background:#ffecd9;" title="Peach"></button>
-                <button class="sidebar-swatch"          data-color="#d4ecff" data-name="Sky"         style="background:#d4ecff;" title="Sky"></button>
-                <button class="sidebar-swatch"          data-color="#fff3c2" data-name="Lemon"       style="background:#fff3c2;" title="Lemon"></button>
-                <button class="sidebar-swatch"          data-color="#fce4f8" data-name="Lilac"       style="background:#fce4f8;" title="Lilac"></button>
-                <button class="sidebar-swatch" data-color="#1a1a1a" data-name="Black"       style="background:#1a1a1a;" title="Black"></button>
-                <button class="sidebar-swatch" data-color="#1e1b2e" data-name="Night Purple" style="background:#1e1b2e;" title="Night Purple"></button>
-                <button class="sidebar-swatch" data-color="#0f1f18" data-name="Dark Green"   style="background:#0f1f18;" title="Dark Green"></button>
-                <button class="sidebar-swatch" data-color="#1a0a0a" data-name="Dark Red"     style="background:#1a0a0a;" title="Dark Red"></button>
-                <button class="sidebar-swatch" data-color="#0d1b2a" data-name="Dark Navy"    style="background:#0d1b2a;" title="Dark Navy"></button>
-                <button class="sidebar-swatch" data-color="#2d2016" data-name="Dark Brown"   style="background:#2d2016;" title="Dark Brown"></button>
-                <button class="sidebar-swatch" data-color="#1f1f1f" data-name="Charcoal"     style="background:#1f1f1f;" title="Charcoal"></button>
-                <button class="sidebar-swatch" data-color="#12141c" data-name="Midnight"     style="background:#12141c;" title="Midnight"></button>
+                <button class="sidebar-swatch selected" data-color="#ffffff" data-name="White"        style="background:#ffffff;" title="White"></button>
+                <button class="sidebar-swatch"          data-color="#ffe0ec" data-name="Blush"        style="background:#ffe0ec;" title="Blush"></button>
+                <button class="sidebar-swatch"          data-color="#f0e6ff" data-name="Lavender"     style="background:#f0e6ff;" title="Lavender"></button>
+                <button class="sidebar-swatch"          data-color="#d6f5f0" data-name="Mint"         style="background:#d6f5f0;" title="Mint"></button>
+                <button class="sidebar-swatch"          data-color="#ffecd9" data-name="Peach"        style="background:#ffecd9;" title="Peach"></button>
+                <button class="sidebar-swatch"          data-color="#d4ecff" data-name="Sky"          style="background:#d4ecff;" title="Sky"></button>
+                <button class="sidebar-swatch"          data-color="#fff3c2" data-name="Lemon"        style="background:#fff3c2;" title="Lemon"></button>
+                <button class="sidebar-swatch"          data-color="#fce4f8" data-name="Lilac"        style="background:#fce4f8;" title="Lilac"></button>
+                <button class="sidebar-swatch" data-color="#1a1a1a" data-name="Black"        style="background:#1a1a1a;" title="Black"></button>
+                <button class="sidebar-swatch" data-color="#1e1b2e" data-name="Night Purple"  style="background:#1e1b2e;" title="Night Purple"></button>
+                <button class="sidebar-swatch" data-color="#0f1f18" data-name="Dark Green"    style="background:#0f1f18;" title="Dark Green"></button>
+                <button class="sidebar-swatch" data-color="#1a0a0a" data-name="Dark Red"      style="background:#1a0a0a;" title="Dark Red"></button>
+                <button class="sidebar-swatch" data-color="#0d1b2a" data-name="Dark Navy"     style="background:#0d1b2a;" title="Dark Navy"></button>
+                <button class="sidebar-swatch" data-color="#2d2016" data-name="Dark Brown"    style="background:#2d2016;" title="Dark Brown"></button>
+                <button class="sidebar-swatch" data-color="#1f1f1f" data-name="Charcoal"      style="background:#1f1f1f;" title="Charcoal"></button>
+                <button class="sidebar-swatch" data-color="#12141c" data-name="Midnight"      style="background:#12141c;" title="Midnight"></button>
               </div>
               <div class="sidebar-color-name" id="sidebarColorName">White</div>
             </div>
-
             <hr class="sidebar-divider">
-
-            <!-- Strip text -->
             <div>
               <div class="sidebar-field-label">Strip Text <span style="font-weight:600;opacity:.55;">(optional)</span></div>
-              <input type="text" id="sidebarTextInput" class="sidebar-input"
-                placeholder="e.g. BFFs 4ever ♡" maxlength="40">
+              <input type="text" id="sidebarTextInput" class="sidebar-input" placeholder="e.g. BFFs 4ever ♡" maxlength="40">
               <div class="sidebar-quick-btns">
                 <button class="sidebar-quick-btn" onclick="setSidebarText('best friends ♡')">best friends ♡</button>
                 <button class="sidebar-quick-btn" onclick="setSidebarText('memories 🌸')">memories 🌸</button>
                 <button class="sidebar-quick-btn" onclick="setSidebarText('인생네컷 ✦')">인생네컷 ✦</button>
               </div>
             </div>
-
-            <!-- Date -->
             <div>
               <div class="sidebar-field-label">Date</div>
               <input type="date" id="sidebarDateInput" class="sidebar-date-input">
             </div>
-
           </div>
         </div>
-
-        <!-- Posing tips (left panel bottom) -->
         <div class="sidebar-panel" style="background:transparent;border-style:dashed;border-color:rgba(255,107,157,.15);flex-shrink:0;">
           <h3>Posing Tips</h3>
           <ul style="list-style:none;display:flex;flex-direction:column;gap:7px;margin:0;padding:0;">
-            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;">
-              <span style="color:var(--pink);flex-shrink:0;">♡</span> Face the camera, eyes on the lens
-            </li>
-            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;">
-              <span style="color:var(--pink);flex-shrink:0;">✦</span> Different pose every shot
-            </li>
-            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;">
-              <span style="color:var(--pink);flex-shrink:0;">★</span> Good lighting = great strip!
-            </li>
+            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;"><span style="color:var(--pink);flex-shrink:0;">♡</span> Face the camera, eyes on the lens</li>
+            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;"><span style="color:var(--pink);flex-shrink:0;">✦</span> Different pose every shot</li>
+            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;"><span style="color:var(--pink);flex-shrink:0;">★</span> Good lighting = great strip!</li>
           </ul>
         </div>
-
       </div>
 
-      <!-- ══════════ CENTER: Camera / Upload ══════════ -->
+      <!-- CENTER -->
       <div class="camera-main fade-in">
 
         <!-- CAMERA MODE -->
         <div id="cameraModeView">
           <div class="camera-viewfinder" id="cameraArea">
             <video id="video" autoplay playsinline muted></video>
-            <canvas id="snapshot" style="display:none;"></canvas>
+            <canvas id="snapshot"></canvas>
             <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
             <div class="vf-corner bl"></div><div class="vf-corner br"></div>
-
             <div class="countdown-overlay" id="countdownOverlay">
               <div class="countdown-number" id="countdownNumber">3</div>
               <div class="countdown-label" id="countdownLabel">Smile!</div>
             </div>
+            <div class="captured-state" id="capturedState">
+              <div class="captured-check-ring"><div class="captured-check">✓</div></div>
+              <div class="captured-label" id="capturedLabel">Shot 1 captured!</div>
+              <div class="captured-sublabel" id="capturedSublabel">Get ready for the next one…</div>
+            </div>
             <div class="flash-overlay" id="flashOverlay"></div>
-
-            <div class="ready-state" id="readyState"
-                 style="position:absolute;inset:0;background:rgba(10,0,20,.82);backdrop-filter:blur(4px);z-index:5;">
+            <!-- PAUSED STATE OVERLAY -->
+            <div id="pausedOverlay">
+              <div class="paused-icon">⏸</div>
+              <div class="paused-title">Session Paused</div>
+              <div class="paused-sub">Take your time — press Resume when ready</div>
+              <button class="paused-resume-btn" onclick="togglePause()">▶ Resume Session</button>
+            </div>
+            <div class="ready-state" id="readyState" style="position:absolute;inset:0;background:rgba(10,0,20,.82);backdrop-filter:blur(4px);z-index:5;">
               <div class="big-icon">📸</div>
               <h2>Ready to Shoot!</h2>
               <p id="readyDesc">Press Start to begin your session.</p>
               <div class="pose-count-badge" id="poseBadge">4 shots · 인생4컷</div>
             </div>
-
             <div class="permission-error" id="permissionError">
               <div class="icon">🚫</div>
               <h3>Camera Blocked</h3>
@@ -246,7 +293,6 @@
               <button class="btn btn-secondary" onclick="window.location.reload()">Reload</button>
             </div>
           </div>
-
           <div class="shot-progress">
             <div class="shot-bar-track"><div class="shot-bar-fill" id="shotBarFill"></div></div>
             <div class="shot-labels">
@@ -254,13 +300,12 @@
               <span class="shot-label-total" id="shotLabelTotal">of —</span>
             </div>
           </div>
-
           <div class="status-msg" id="statusMsg">Press Start Session to begin</div>
           <div class="mobile-thumbs" id="mobileThumbs"></div>
-
           <div class="camera-controls">
             <button class="btn btn-primary btn-lg" id="startBtn" style="flex:1;">▶ Start Session</button>
-            <a href="index.html" class="btn btn-secondary btn-lg" style="padding:15px 18px;" data-tooltip="Change layout">⊞</a>
+            <button class="btn btn-pause btn-lg" id="pauseBtn" onclick="togglePause()" style="display:none;">⏸ Pause</button>
+            <a href="index.html" class="btn btn-secondary btn-lg" style="padding:14px 18px;flex-shrink:0;" data-tooltip="Change layout">⊞</a>
           </div>
         </div>
 
@@ -274,45 +319,50 @@
                 <p id="uploadSubtitle">Select photos from your device</p>
               </div>
             </div>
-
             <div class="upload-slots-grid" id="uploadSlotsGrid"></div>
             <p class="upload-slot-reorder-hint" id="reorderHint">⟺ Drag photos to rearrange order</p>
-
             <div class="upload-bulk-wrap">
-              <button class="btn btn-secondary upload-bulk-btn" id="uploadAllBtn" onclick="triggerBulkUpload()">
-                📁 Select All Photos at Once
-              </button>
+              <button class="btn btn-secondary upload-bulk-btn" onclick="triggerBulkUpload()">📁 Select All Photos at Once</button>
               <input type="file" id="bulkFileInput" accept="image/*" multiple style="display:none;" onchange="handleBulkUpload(event)">
             </div>
-
             <div class="upload-progress-wrap" id="uploadProgressWrap" style="display:none;">
-              <div class="upload-progress-bar">
-                <div class="upload-progress-fill" id="uploadProgressFill"></div>
-              </div>
+              <div class="upload-progress-bar"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
               <p class="upload-progress-label" id="uploadProgressLabel">0 of 0 photos selected</p>
             </div>
+            <button class="btn btn-primary btn-lg" id="uploadContinueBtn" disabled onclick="continueFromUpload()" style="margin-top:16px;width:100%;opacity:.5;">✦ Generate Strip →</button>
+          </div>
+        </div>
 
-            <button class="btn btn-primary btn-lg" id="uploadContinueBtn" disabled onclick="continueFromUpload()" style="margin-top:16px;width:100%;opacity:.5;">
-              ✦ Generate Strip →
-            </button>
+        <!-- REARRANGE MODE -->
+        <div id="rearrangeView" style="display:none;">
+          <div class="rearrange-container">
+            <div class="rearrange-header-row">
+              <div class="rearrange-header-icon">🎞️</div>
+              <div>
+                <h3 id="rearrangeTitle">Review &amp; Rearrange</h3>
+                <p id="rearrangeSubtitle">Drag photos to reorder your strip</p>
+              </div>
+            </div>
+            <div class="rearrange-grid" id="rearrangeGrid"></div>
+            <p class="rearrange-drag-hint">⟺ Drag to reorder · Long-press on mobile</p>
+            <div class="rearrange-actions">
+              <button class="btn btn-secondary" onclick="retakeFromRearrange()">↺ Retake All</button>
+              <button class="btn btn-primary btn-lg" id="buildStripBtn" onclick="buildStrip()">✦ Build Strip →</button>
+            </div>
           </div>
         </div>
 
       </div>
 
-      <!-- ══════════ RIGHT PANEL: Preview ══════════ -->
+      <!-- RIGHT PANEL -->
       <div class="camera-right-panel">
-
         <div class="sidebar-panel" id="panelPreview" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
           <h3>Strip Preview <span id="previewShotCount" style="font-size:.6rem;font-weight:600;color:var(--text-light);"></span></h3>
           <div class="live-preview-wrap" id="livePreviewWrap" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;">
             <canvas id="liveStripCanvas" style="max-width:100%;max-height:100%;width:auto;height:auto;display:none;"></canvas>
-            <div class="live-preview-placeholder" id="livePreviewPlaceholder">
-              <span>📸</span><p>Preview appears here</p>
-            </div>
+            <div class="live-preview-placeholder" id="livePreviewPlaceholder"><span>📸</span><p>Preview appears here</p></div>
           </div>
         </div>
-
       </div>
 
     </div>
