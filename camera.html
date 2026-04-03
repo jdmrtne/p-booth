@@ -13,7 +13,91 @@
     .camera-layout { height: 100%; overflow: hidden; }
     .camera-main { display: flex; flex-direction: column; height: 100%; overflow: hidden; min-height: 0; }
     .camera-viewfinder { flex: 1; min-height: 0; aspect-ratio: unset !important; }
-    .camera-sidebar { height: 100%; overflow-y: auto; }
+
+    /* ── Left panel: compact customize ── */
+    .sidebar-customize { display: flex; flex-direction: column; gap: 9px; }
+    .sidebar-color-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 5px;
+    }
+    .sidebar-swatch {
+      width: 100%; aspect-ratio: 1; border-radius: 50%;
+      border: 2px solid transparent; cursor: pointer;
+      transition: transform .15s, border-color .15s; outline: none;
+    }
+    .sidebar-swatch:hover { transform: scale(1.2); }
+    .sidebar-swatch.selected {
+      border-color: var(--pink) !important; transform: scale(1.18);
+      box-shadow: 0 0 0 2px rgba(255,107,157,.3);
+    }
+    .sidebar-swatch[data-color="#ffffff"] { border-color: #ddd; }
+    .sidebar-color-name {
+      font-size: .65rem; font-weight: 700; color: var(--text-muted);
+      letter-spacing: .02em; text-align: right;
+    }
+    .sidebar-field-label {
+      font-size: .6rem; font-weight: 800; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px;
+    }
+    .sidebar-input, .sidebar-date-input {
+      width: 100%; padding: 6px 9px; border-radius: 8px;
+      border: 1.5px solid rgba(168,85,247,.18);
+      background: rgba(255,255,255,.6); font-size: .72rem;
+      font-family: inherit; color: var(--text); outline: none;
+      box-sizing: border-box; transition: border-color .2s;
+    }
+    .sidebar-input:focus, .sidebar-date-input:focus { border-color: var(--pink); }
+    .sidebar-quick-btns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .sidebar-quick-btn {
+      padding: 3px 8px; border-radius: 20px;
+      border: 1.5px solid rgba(255,107,157,.3);
+      background: rgba(255,107,157,.07); color: var(--pink);
+      font-size: .6rem; font-weight: 700; cursor: pointer;
+      transition: background .15s;
+    }
+    .sidebar-quick-btn:hover { background: rgba(255,107,157,.15); }
+    .sidebar-divider { border: none; border-top: 1px dashed rgba(168,85,247,.15); margin: 4px 0; }
+
+    /* ── Right panel: preview fills height ── */
+    #panelPreview { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    #panelPreview .live-preview-wrap {
+      flex: 1; min-height: 0; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #panelPreview #liveStripCanvas {
+      max-width: 100%; max-height: 100%; width: auto !important; height: auto !important;
+      display: block;
+    }
+
+    /* ── Drag-and-drop ── */
+    .upload-slot[draggable="true"] { cursor: grab; }
+    .upload-slot[draggable="true"]:active { cursor: grabbing; }
+    .upload-slot.dragging { opacity: .4; transform: scale(.96); border-style: dashed; border-color: var(--pink); }
+    .upload-slot.drag-over { border-color: var(--pink); background: rgba(255,107,157,.12); transform: scale(1.04); box-shadow: 0 0 0 3px rgba(255,107,157,.25); }
+    .drag-handle {
+      position: absolute; top: 5px; left: 5px; z-index: 10;
+      width: 18px; height: 18px; border-radius: 4px;
+      background: rgba(0,0,0,.38); color: #fff;
+      display: none; align-items: center; justify-content: center;
+      font-size: 10px; cursor: grab; pointer-events: none;
+    }
+    .upload-slot.filled .drag-handle { display: flex; }
+    .upload-slot-reorder-hint {
+      font-size: .63rem; color: var(--text-muted); font-weight: 600;
+      text-align: center; padding: 4px 0 0; display: none;
+    }
+    .upload-slot-reorder-hint.visible { display: block; }
+
+    /* Keep left/right panels from overflowing; allow internal scroll only on left customize */
+    .camera-left-panel  { overflow-y: auto; }
+    .camera-right-panel { overflow: hidden; }
+
+    /* Compact sidebar panels in narrow columns */
+    .camera-left-panel  .sidebar-panel,
+    .camera-right-panel .sidebar-panel { padding: 12px; }
+    .camera-left-panel  .sidebar-panel h3,
+    .camera-right-panel .sidebar-panel h3 { margin-bottom: 8px; }
   </style>
 </head>
 <body>
@@ -47,7 +131,90 @@
   <main>
     <div class="camera-layout">
 
-      <!-- LEFT: Viewfinder / Upload -->
+      <!-- ══════════ LEFT PANEL: Customize ══════════ -->
+      <div class="camera-left-panel">
+
+        <div class="sidebar-panel">
+          <h3>Selected Layout</h3>
+          <div class="layout-badge">
+            <div class="layout-badge-icon" id="layoutBadgeIcon">인생4컷</div>
+            <div class="layout-badge-info">
+              <div class="name" id="layoutBadgeName">Classic 4-Cut</div>
+              <div class="sub" id="layoutBadgeSub">4 shots · 4 × 1 strip</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-panel">
+          <h3>🎨 Customize Strip</h3>
+          <div class="sidebar-customize">
+
+            <!-- Color swatches -->
+            <div>
+              <div class="sidebar-field-label">Background</div>
+              <div class="sidebar-color-grid" id="sidebarColorGrid">
+                <button class="sidebar-swatch selected" data-color="#ffffff" data-name="White"       style="background:#ffffff;" title="White"></button>
+                <button class="sidebar-swatch"          data-color="#ffe0ec" data-name="Blush"       style="background:#ffe0ec;" title="Blush"></button>
+                <button class="sidebar-swatch"          data-color="#f0e6ff" data-name="Lavender"    style="background:#f0e6ff;" title="Lavender"></button>
+                <button class="sidebar-swatch"          data-color="#d6f5f0" data-name="Mint"        style="background:#d6f5f0;" title="Mint"></button>
+                <button class="sidebar-swatch"          data-color="#ffecd9" data-name="Peach"       style="background:#ffecd9;" title="Peach"></button>
+                <button class="sidebar-swatch"          data-color="#d4ecff" data-name="Sky"         style="background:#d4ecff;" title="Sky"></button>
+                <button class="sidebar-swatch"          data-color="#fff3c2" data-name="Lemon"       style="background:#fff3c2;" title="Lemon"></button>
+                <button class="sidebar-swatch"          data-color="#fce4f8" data-name="Lilac"       style="background:#fce4f8;" title="Lilac"></button>
+                <button class="sidebar-swatch" data-color="#1a1a1a" data-name="Black"       style="background:#1a1a1a;" title="Black"></button>
+                <button class="sidebar-swatch" data-color="#1e1b2e" data-name="Night Purple" style="background:#1e1b2e;" title="Night Purple"></button>
+                <button class="sidebar-swatch" data-color="#0f1f18" data-name="Dark Green"   style="background:#0f1f18;" title="Dark Green"></button>
+                <button class="sidebar-swatch" data-color="#1a0a0a" data-name="Dark Red"     style="background:#1a0a0a;" title="Dark Red"></button>
+                <button class="sidebar-swatch" data-color="#0d1b2a" data-name="Dark Navy"    style="background:#0d1b2a;" title="Dark Navy"></button>
+                <button class="sidebar-swatch" data-color="#2d2016" data-name="Dark Brown"   style="background:#2d2016;" title="Dark Brown"></button>
+                <button class="sidebar-swatch" data-color="#1f1f1f" data-name="Charcoal"     style="background:#1f1f1f;" title="Charcoal"></button>
+                <button class="sidebar-swatch" data-color="#12141c" data-name="Midnight"     style="background:#12141c;" title="Midnight"></button>
+              </div>
+              <div class="sidebar-color-name" id="sidebarColorName">White</div>
+            </div>
+
+            <hr class="sidebar-divider">
+
+            <!-- Strip text -->
+            <div>
+              <div class="sidebar-field-label">Strip Text <span style="font-weight:600;opacity:.55;">(optional)</span></div>
+              <input type="text" id="sidebarTextInput" class="sidebar-input"
+                placeholder="e.g. BFFs 4ever ♡" maxlength="40">
+              <div class="sidebar-quick-btns">
+                <button class="sidebar-quick-btn" onclick="setSidebarText('best friends ♡')">best friends ♡</button>
+                <button class="sidebar-quick-btn" onclick="setSidebarText('memories 🌸')">memories 🌸</button>
+                <button class="sidebar-quick-btn" onclick="setSidebarText('인생네컷 ✦')">인생네컷 ✦</button>
+              </div>
+            </div>
+
+            <!-- Date -->
+            <div>
+              <div class="sidebar-field-label">Date</div>
+              <input type="date" id="sidebarDateInput" class="sidebar-date-input">
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Posing tips (left panel bottom) -->
+        <div class="sidebar-panel" style="background:transparent;border-style:dashed;border-color:rgba(255,107,157,.15);flex-shrink:0;">
+          <h3>Posing Tips</h3>
+          <ul style="list-style:none;display:flex;flex-direction:column;gap:7px;margin:0;padding:0;">
+            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;">
+              <span style="color:var(--pink);flex-shrink:0;">♡</span> Face the camera, eyes on the lens
+            </li>
+            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;">
+              <span style="color:var(--pink);flex-shrink:0;">✦</span> Different pose every shot
+            </li>
+            <li style="display:flex;gap:6px;font-size:.67rem;color:var(--text-muted);font-weight:600;line-height:1.4;">
+              <span style="color:var(--pink);flex-shrink:0;">★</span> Good lighting = great strip!
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- ══════════ CENTER: Camera / Upload ══════════ -->
       <div class="camera-main fade-in">
 
         <!-- CAMERA MODE -->
@@ -55,17 +222,13 @@
           <div class="camera-viewfinder" id="cameraArea">
             <video id="video" autoplay playsinline muted></video>
             <canvas id="snapshot" style="display:none;"></canvas>
-
-            <div class="vf-corner tl"></div>
-            <div class="vf-corner tr"></div>
-            <div class="vf-corner bl"></div>
-            <div class="vf-corner br"></div>
+            <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
+            <div class="vf-corner bl"></div><div class="vf-corner br"></div>
 
             <div class="countdown-overlay" id="countdownOverlay">
               <div class="countdown-number" id="countdownNumber">3</div>
               <div class="countdown-label" id="countdownLabel">Smile!</div>
             </div>
-
             <div class="flash-overlay" id="flashOverlay"></div>
 
             <div class="ready-state" id="readyState"
@@ -85,9 +248,7 @@
           </div>
 
           <div class="shot-progress">
-            <div class="shot-bar-track">
-              <div class="shot-bar-fill" id="shotBarFill"></div>
-            </div>
+            <div class="shot-bar-track"><div class="shot-bar-fill" id="shotBarFill"></div></div>
             <div class="shot-labels">
               <span class="shot-label-current" id="shotLabelCurrent">Ready to start</span>
               <span class="shot-label-total" id="shotLabelTotal">of —</span>
@@ -98,9 +259,7 @@
           <div class="mobile-thumbs" id="mobileThumbs"></div>
 
           <div class="camera-controls">
-            <button class="btn btn-primary btn-lg" id="startBtn" style="flex:1;">
-              ▶ Start Session
-            </button>
+            <button class="btn btn-primary btn-lg" id="startBtn" style="flex:1;">▶ Start Session</button>
             <a href="index.html" class="btn btn-secondary btn-lg" style="padding:15px 18px;" data-tooltip="Change layout">⊞</a>
           </div>
         </div>
@@ -117,8 +276,8 @@
             </div>
 
             <div class="upload-slots-grid" id="uploadSlotsGrid"></div>
+            <p class="upload-slot-reorder-hint" id="reorderHint">⟺ Drag photos to rearrange order</p>
 
-            <!-- Bulk upload button -->
             <div class="upload-bulk-wrap">
               <button class="btn btn-secondary upload-bulk-btn" id="uploadAllBtn" onclick="triggerBulkUpload()">
                 📁 Select All Photos at Once
@@ -141,57 +300,17 @@
 
       </div>
 
-      <!-- RIGHT: Sidebar -->
-      <div class="camera-sidebar fade-in" style="animation-delay:.15s;">
+      <!-- ══════════ RIGHT PANEL: Preview ══════════ -->
+      <div class="camera-right-panel">
 
-        <div class="sidebar-panel">
-          <h3>Selected Layout</h3>
-          <div class="layout-badge">
-            <div class="layout-badge-icon" id="layoutBadgeIcon">인생4컷</div>
-            <div class="layout-badge-info">
-              <div class="name" id="layoutBadgeName">Classic 4-Cut</div>
-              <div class="sub" id="layoutBadgeSub">4 shots · 4 × 1 strip</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Strip Color Preview -->
-        <div class="sidebar-panel">
-          <h3>Strip Style</h3>
-          <div class="sidebar-strip-style" id="sidebarStripStyle">
-            <div class="strip-color-dot" id="sidebarColorDot"></div>
-            <span id="sidebarColorName">White</span>
-            <span class="sidebar-text-preview" id="sidebarTextPreview"></span>
-          </div>
-          <a href="index.html" class="btn-edit-style">✎ Edit style</a>
-        </div>
-
-        <div class="sidebar-panel">
-          <h3>Strip Preview <span id="previewShotCount" style="font-size:.65rem;font-weight:600;color:var(--text-light);"></span></h3>
-          <div class="live-preview-wrap" id="livePreviewWrap">
-            <canvas id="liveStripCanvas"></canvas>
+        <div class="sidebar-panel" id="panelPreview" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+          <h3>Strip Preview <span id="previewShotCount" style="font-size:.6rem;font-weight:600;color:var(--text-light);"></span></h3>
+          <div class="live-preview-wrap" id="livePreviewWrap" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            <canvas id="liveStripCanvas" style="max-width:100%;max-height:100%;width:auto;height:auto;display:none;"></canvas>
             <div class="live-preview-placeholder" id="livePreviewPlaceholder">
-              <span>📸</span><p>Preview appears here as you shoot</p>
+              <span>📸</span><p>Preview appears here</p>
             </div>
           </div>
-        </div>
-
-        <div class="sidebar-panel" style="background:transparent;border-style:dashed;border-color:rgba(255,107,157,.15);">
-          <h3>Posing Tips</h3>
-          <ul class="tips-list" style="list-style:none;display:flex;flex-direction:column;gap:9px;">
-            <li style="display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:var(--text-muted);font-weight:600;line-height:1.5;">
-              <span style="color:var(--pink);flex-shrink:0;">♡</span>
-              Face the camera, eyes on the lens
-            </li>
-            <li style="display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:var(--text-muted);font-weight:600;line-height:1.5;">
-              <span style="color:var(--pink);flex-shrink:0;">✦</span>
-              Strike a different pose each shot
-            </li>
-            <li style="display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:var(--text-muted);font-weight:600;line-height:1.5;">
-              <span style="color:var(--pink);flex-shrink:0;">★</span>
-              Good lighting = great strip!
-            </li>
-          </ul>
         </div>
 
       </div>

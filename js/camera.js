@@ -13,13 +13,15 @@ let layoutConfig   = null;
 let currentMode    = 'camera';
 let uploadedPhotos = [];
 
+// drag state
+let dragSrcIndex = null;
+
 let videoEl, snapshotCanvas, countdownOverlay, countdownNumber, countdownLabel,
     flashOverlay, shotBarFill, shotLabelCurrent, shotLabelTotal, statusMsg,
     startBtn, cameraArea, readyState, permissionError, thumbnailsGrid,
     layoutBadgeName, layoutBadgeSub, layoutBadgeIcon, mobileThumbs;
 
 // ─── IMAGE COMPRESSION ───────────────────────────────────────────
-// Resize + compress to JPEG before storing, keeps sessionStorage < 4MB
 function compressImage(dataUrl, maxSide = 800, quality = 0.75) {
   return new Promise(resolve => {
     const img = new Image();
@@ -31,25 +33,21 @@ function compressImage(dataUrl, maxSide = 800, quality = 0.75) {
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL('image/jpeg', quality));
     };
-    img.onerror = () => resolve(dataUrl); // fallback: use original
+    img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
 }
 
-// Safe sessionStorage set — clears photos if quota is exceeded
 function safeSetPhotos(photos) {
   try {
     sessionStorage.setItem('photobooth_photos', JSON.stringify(photos));
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
-      // Try with lower quality
-      console.warn('Quota exceeded, re-compressing…');
       Promise.all(photos.map(p => p ? compressImage(p, 600, 0.6) : Promise.resolve(null)))
         .then(recompressed => {
           try {
             sessionStorage.setItem('photobooth_photos', JSON.stringify(recompressed));
           } catch (e2) {
-            // Use IndexedDB as final fallback
             savePhotosToIDB(recompressed);
           }
         });
@@ -57,7 +55,6 @@ function safeSetPhotos(photos) {
   }
 }
 
-// IndexedDB fallback for very large sets (8 shots)
 function savePhotosToIDB(photos) {
   const req = indexedDB.open('pbooth', 1);
   req.onupgradeneeded = e => e.target.result.createObjectStore('photos');
@@ -130,35 +127,68 @@ document.addEventListener('DOMContentLoaded', async () => {
   const poseBadge = document.getElementById('poseBadge');
   if (poseBadge)  poseBadge.textContent = `${layoutConfig.shots} shots · ${layoutConfig.kr}`;
 
-  const savedColor = sessionStorage.getItem('photobooth_strip_color') || '#ffffff';
-  const savedText  = sessionStorage.getItem('photobooth_custom_text') || '';
-  updateStripStyleSidebar(savedColor, savedText);
-
+  initCustomizePanel();
   buildThumbnailGrid();
   startBtn?.addEventListener('click', beginSession);
   buildUploadSlots();
   await initCamera();
 
-  // Show blank strip preview immediately on load
   updateLivePreview();
 });
 
-// ─── SIDEBAR STYLE ───────────────────────────────────────────────
-function updateStripStyleSidebar(color, text) {
-  const COLOR_NAMES = {
-    '#ffffff':'White','#ffe0ec':'Blush','#f0e6ff':'Lavender','#d6f5f0':'Mint',
-    '#ffecd9':'Peach','#d4ecff':'Sky','#fff3c2':'Lemon','#fce4f8':'Lilac',
-    '#1a1a1a':'Black','#1e1b2e':'Night Purple','#0f1f18':'Dark Green',
-    '#1a0a0a':'Dark Red','#0d1b2a':'Dark Navy','#2d2016':'Dark Brown',
-    '#1f1f1f':'Charcoal','#12141c':'Midnight',
-  };
-  const dot      = document.getElementById('sidebarColorDot');
-  const name     = document.getElementById('sidebarColorName');
-  const textPrev = document.getElementById('sidebarTextPreview');
-  if (dot)  { dot.style.background = color; dot.style.borderColor = color === '#ffffff' ? '#ddd' : color; }
-  if (name) name.textContent = COLOR_NAMES[color] || 'Custom';
-  if (textPrev) textPrev.textContent = text ? `"${text}"` : '';
+// ─── CUSTOMIZE PANEL (sidebar) ────────────────────────────────────
+function initCustomizePanel() {
+  // Restore saved values
+  const savedColor = sessionStorage.getItem('photobooth_strip_color') || '#ffffff';
+  const savedText  = sessionStorage.getItem('photobooth_custom_text') || '';
+  const today      = new Date().toISOString().slice(0, 10);
+  const savedDate  = sessionStorage.getItem('photobooth_custom_date') || today;
+
+  // Color swatches
+  document.querySelectorAll('.sidebar-swatch').forEach(sw => {
+    sw.classList.toggle('selected', sw.dataset.color === savedColor);
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar-swatch').forEach(s => s.classList.remove('selected'));
+      sw.classList.add('selected');
+      sessionStorage.setItem('photobooth_strip_color', sw.dataset.color);
+      const nameEl = document.getElementById('sidebarColorName');
+      if (nameEl) nameEl.textContent = sw.dataset.name;
+      updateLivePreview();
+    });
+  });
+  const nameEl = document.getElementById('sidebarColorName');
+  const activeSwatch = document.querySelector(`.sidebar-swatch[data-color="${savedColor}"]`);
+  if (nameEl && activeSwatch) nameEl.textContent = activeSwatch.dataset.name;
+
+  // Text input
+  const textInput = document.getElementById('sidebarTextInput');
+  if (textInput) {
+    textInput.value = savedText;
+    textInput.addEventListener('input', () => {
+      sessionStorage.setItem('photobooth_custom_text', textInput.value);
+      updateLivePreview();
+    });
+  }
+
+  // Date input
+  const dateInput = document.getElementById('sidebarDateInput');
+  if (dateInput) {
+    dateInput.value = savedDate;
+    sessionStorage.setItem('photobooth_custom_date', savedDate);
+    dateInput.addEventListener('change', () => {
+      sessionStorage.setItem('photobooth_custom_date', dateInput.value);
+      updateLivePreview();
+    });
+  }
 }
+
+window.setSidebarText = function(text) {
+  const input = document.getElementById('sidebarTextInput');
+  if (!input) return;
+  input.value = text;
+  sessionStorage.setItem('photobooth_custom_text', text);
+  updateLivePreview();
+};
 
 // ─── MODE TOGGLE ─────────────────────────────────────────────────
 function switchMode(mode) {
@@ -180,6 +210,7 @@ function switchMode(mode) {
     camBtn.classList.remove('active');
     upBtn.classList.add('active');
     if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    updateLivePreview(); // refresh preview with upload photos
   }
 }
 
@@ -202,8 +233,6 @@ async function initCamera() {
 // ─── THUMBNAIL GRID ──────────────────────────────────────────────
 function buildThumbnailGrid() {
   if (!thumbnailsGrid) return;
-  // cols-2 for doublestrip (2 vertical strips side by side) and grid2x2
-  // cols-1 for single strips
   let colClass = 'cols-1';
   if (layoutConfig.type === 'doublestrip') colClass = 'cols-2';
   else if (layoutConfig.type === 'grid2x2') colClass = 'cols-2';
@@ -267,7 +296,10 @@ function buildUploadSlots() {
     slot.className    = 'upload-slot';
     slot.id           = `upload-slot-${i}`;
     slot.dataset.index = i;
+    slot.draggable    = true;
+
     slot.innerHTML = `
+      <div class="drag-handle">⠿</div>
       <div class="upload-slot-placeholder" id="upload-placeholder-${i}">
         <span class="upload-slot-icon">+</span>
         <span class="upload-slot-num">Photo ${i+1}</span>
@@ -276,9 +308,115 @@ function buildUploadSlots() {
       <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)">✕</button>
       <input type="file" accept="image/*" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
     `;
-    slot.addEventListener('click', () => triggerSingleUpload(i));
+
+    // click to upload (only if not dragging)
+    slot.addEventListener('click', (e) => {
+      if (!e.target.closest('.upload-slot-remove') && !isDragging) {
+        triggerSingleUpload(i);
+      }
+    });
+
+    // ── Drag-and-drop events ──
+    slot.addEventListener('dragstart', (e) => {
+      if (uploadedPhotos[i] === null) { e.preventDefault(); return; }
+      dragSrcIndex = i;
+      isDragging = true;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      setTimeout(() => slot.classList.add('dragging'), 0);
+    });
+
+    slot.addEventListener('dragend', () => {
+      slot.classList.remove('dragging');
+      document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+      setTimeout(() => { isDragging = false; }, 50);
+    });
+
+    slot.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (parseInt(slot.dataset.index) !== dragSrcIndex) {
+        slot.classList.add('drag-over');
+      }
+    });
+
+    slot.addEventListener('dragleave', () => {
+      slot.classList.remove('drag-over');
+    });
+
+    slot.addEventListener('drop', (e) => {
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      const toIndex = parseInt(slot.dataset.index);
+      if (dragSrcIndex !== null && dragSrcIndex !== toIndex) {
+        swapUploadedPhotos(dragSrcIndex, toIndex);
+      }
+      dragSrcIndex = null;
+    });
+
     grid.appendChild(slot);
   }
+}
+
+let isDragging = false;
+
+function swapUploadedPhotos(a, b) {
+  // Swap data
+  const tmp = uploadedPhotos[a];
+  uploadedPhotos[a] = uploadedPhotos[b];
+  uploadedPhotos[b] = tmp;
+
+  // Re-render both slots visually
+  renderUploadSlot(a);
+  renderUploadSlot(b);
+  updateUploadProgress();
+  updateLivePreview();
+}
+
+function renderUploadSlot(index) {
+  const dataUrl     = uploadedPhotos[index];
+  const slot        = document.getElementById(`upload-slot-${index}`);
+  const placeholder = document.getElementById(`upload-placeholder-${index}`);
+  const img         = document.getElementById(`upload-img-${index}`);
+  const removeBtn   = document.getElementById(`upload-remove-${index}`);
+
+  if (!slot) return;
+
+  if (dataUrl) {
+    slot.classList.add('filled');
+    if (placeholder) placeholder.style.display = 'none';
+    if (img)         { img.src = dataUrl; img.style.display = 'block'; }
+    if (removeBtn)   removeBtn.style.display = 'flex';
+  } else {
+    slot.classList.remove('filled');
+    if (placeholder) placeholder.style.display = '';
+    if (img)         { img.src = ''; img.style.display = 'none'; }
+    if (removeBtn)   removeBtn.style.display = 'none';
+  }
+
+  // Sync sidebar thumbnail too
+  const thumbSlot = document.getElementById(`thumb-${index}`);
+  const thumbImg  = document.getElementById(`thumb-img-${index}`);
+  if (thumbSlot) thumbSlot.classList.toggle('captured', !!dataUrl);
+  if (thumbImg)  { thumbImg.src = dataUrl || ''; thumbImg.style.opacity = dataUrl ? '1' : '0'; }
+}
+
+function updateUploadProgress() {
+  const filled  = uploadedPhotos.filter(Boolean).length;
+  const total   = layoutConfig.shots;
+  const progWrap = document.getElementById('uploadProgressWrap');
+  const progFill = document.getElementById('uploadProgressFill');
+  const progLbl  = document.getElementById('uploadProgressLabel');
+  const contBtn  = document.getElementById('uploadContinueBtn');
+  const hint     = document.getElementById('reorderHint');
+
+  if (progWrap) progWrap.style.display = filled > 0 ? '' : 'none';
+  if (progFill) progFill.style.width   = `${(filled/total)*100}%`;
+  if (progLbl)  progLbl.textContent    = `${filled} of ${total} photos selected`;
+
+  const allFilled = filled >= total;
+  if (contBtn) { contBtn.disabled = !allFilled; contBtn.style.opacity = allFilled ? '1' : '.5'; }
+  if (hint)    hint.classList.toggle('visible', filled >= 2);
 }
 
 function triggerSingleUpload(index) {
@@ -316,62 +454,22 @@ function readFileAsDataUrl(file) {
 
 function setUploadedPhoto(index, dataUrl) {
   uploadedPhotos[index] = dataUrl;
-
-  const slot        = document.getElementById(`upload-slot-${index}`);
-  const placeholder = document.getElementById(`upload-placeholder-${index}`);
-  const img         = document.getElementById(`upload-img-${index}`);
-  const removeBtn   = document.getElementById(`upload-remove-${index}`);
-
-  if (slot)        slot.classList.add('filled');
-  if (placeholder) placeholder.style.display = 'none';
-  if (img)         { img.src = dataUrl; img.style.display = 'block'; }
-  if (removeBtn)   removeBtn.style.display = 'flex';
-
-  updateThumbnail(index, dataUrl);
-
-  const filled   = uploadedPhotos.filter(Boolean).length;
-  const progWrap = document.getElementById('uploadProgressWrap');
-  const progFill = document.getElementById('uploadProgressFill');
-  const progLbl  = document.getElementById('uploadProgressLabel');
-  const contBtn  = document.getElementById('uploadContinueBtn');
-
-  if (progWrap) progWrap.style.display = '';
-  if (progFill) progFill.style.width   = `${(filled/layoutConfig.shots)*100}%`;
-  if (progLbl)  progLbl.textContent    = `${filled} of ${layoutConfig.shots} photos selected`;
-
-  const allFilled = filled >= layoutConfig.shots;
-  if (contBtn) { contBtn.disabled = !allFilled; contBtn.style.opacity = allFilled ? '1' : '.5'; }
+  renderUploadSlot(index);
+  updateUploadProgress();
+  updateLivePreview();
 }
 
 function removeUploadedPhoto(index, event) {
   event?.stopPropagation();
   uploadedPhotos[index] = null;
+  renderUploadSlot(index);
 
-  const slot      = document.getElementById(`upload-slot-${index}`);
-  const placeholder = document.getElementById(`upload-placeholder-${index}`);
-  const img       = document.getElementById(`upload-img-${index}`);
-  const removeBtn = document.getElementById(`upload-remove-${index}`);
+  // Also clear the file input so it can be re-selected
   const fileInput = document.getElementById(`upload-file-${index}`);
+  if (fileInput) fileInput.value = '';
 
-  if (slot)        slot.classList.remove('filled');
-  if (placeholder) placeholder.style.display = '';
-  if (img)         { img.src = ''; img.style.display = 'none'; }
-  if (removeBtn)   removeBtn.style.display = 'none';
-  if (fileInput)   fileInput.value = '';
-
-  const thumbSlot = document.getElementById(`thumb-${index}`);
-  const thumbImg  = document.getElementById(`thumb-img-${index}`);
-  if (thumbSlot) thumbSlot.classList.remove('captured');
-  if (thumbImg)  { thumbImg.src = ''; thumbImg.style.opacity = '0'; }
-
-  const filled  = uploadedPhotos.filter(Boolean).length;
-  const progFill = document.getElementById('uploadProgressFill');
-  const progLbl  = document.getElementById('uploadProgressLabel');
-  const contBtn  = document.getElementById('uploadContinueBtn');
-
-  if (progFill) progFill.style.width   = `${(filled/layoutConfig.shots)*100}%`;
-  if (progLbl)  progLbl.textContent    = `${filled} of ${layoutConfig.shots} photos selected`;
-  if (contBtn)  { contBtn.disabled = filled < layoutConfig.shots; contBtn.style.opacity = filled >= layoutConfig.shots ? '1' : '.5'; }
+  updateUploadProgress();
+  updateLivePreview();
 }
 
 async function continueFromUpload() {
@@ -379,14 +477,12 @@ async function continueFromUpload() {
   const btn = document.getElementById('uploadContinueBtn');
   if (btn) { btn.textContent = 'Preparing…'; btn.disabled = true; }
 
-  // Compress before saving
   const compressed = await Promise.all(
     uploadedPhotos.map(p => p ? compressImage(p, 900, 0.78) : Promise.resolve(null))
   );
 
   safeSetPhotos(compressed);
 
-  // If IDB was used, don't redirect yet (handled inside safeSetPhotos)
   if (!sessionStorage.getItem('photobooth_photos_idb')) {
     window.location.href = 'result.html';
   }
@@ -416,7 +512,6 @@ async function captureSequence() {
     await runCountdown(3, `Shot ${i+1} of ${layoutConfig.shots}`);
 
     const dataUrl    = captureFrame();
-    // Compress camera capture too (mitigates quota for 8-cut sessions)
     const compressed = await compressImage(dataUrl, 900, 0.80);
     capturedPhotos[i] = compressed;
     updateThumbnail(i, compressed);
@@ -485,7 +580,6 @@ function updateThumbnail(i, dataUrl) {
   if (mobSlot) { mobSlot.style.borderStyle = 'solid'; mobSlot.style.borderColor = layoutConfig.accentColor + '88'; }
   if (mobImg)  { mobImg.src = dataUrl; mobImg.style.opacity = '1'; }
 
-  // Update live strip preview in sidebar
   updateLivePreview();
 }
 
@@ -497,25 +591,27 @@ async function updateLivePreview() {
   const countEl     = document.getElementById('previewShotCount');
   if (!canvas || !layoutConfig) return;
 
-  // Show how many shots captured
-  const done = capturedPhotos.filter(Boolean).length;
+  // In upload mode use uploadedPhotos, in camera mode use capturedPhotos
+  const sourcePhotos = currentMode === 'upload' ? uploadedPhotos : capturedPhotos;
+  const done = (sourcePhotos || []).filter(Boolean).length;
   if (countEl) countEl.textContent = `${done}/${layoutConfig.shots} shots`;
 
-  // Debounce so rapid captures don't stack up
   clearTimeout(previewDebounce);
   previewDebounce = setTimeout(async () => {
     try {
-      // Build photo array — null for uncaptured slots
-      const photos = Array.from({ length: layoutConfig.shots }, (_, i) => capturedPhotos[i] || null);
-      const strip  = await generatePhotoStrip(photos, layoutConfig);
+      // Build photo array with correct source
+      const photos = Array.from(
+        { length: layoutConfig.shots },
+        (_, i) => (sourcePhotos && sourcePhotos[i]) ? sourcePhotos[i] : null
+      );
 
-      // Scale to fit sidebar (~250px wide)
-      const PREVIEW_W = 250;
-      const scale     = PREVIEW_W / strip.width;
-      canvas.width    = PREVIEW_W;
-      canvas.height   = Math.round(strip.height * scale);
-      canvas.getContext('2d').drawImage(strip, 0, 0, canvas.width, canvas.height);
-      canvas.style.display = 'block';
+      const strip = await generatePhotoStrip(photos, layoutConfig);
+
+      // Draw at full native resolution; CSS max-width:100% / max-height:100% will scale it down
+      canvas.width  = strip.width;
+      canvas.height = strip.height;
+      canvas.getContext('2d').drawImage(strip, 0, 0);
+      canvas.style.display = '';
       if (placeholder) placeholder.style.display = 'none';
     } catch (e) {
       console.warn('Preview error:', e);
@@ -541,3 +637,11 @@ function shiftHue(hex) {
 
 window.addEventListener('beforeunload', () => { stream?.getTracks().forEach(t => t.stop()); });
 window.retakePhotos = () => { sessionStorage.removeItem('photobooth_photos'); sessionStorage.removeItem('photobooth_photos_idb'); window.location.reload(); };
+
+// Expose functions needed by inline HTML handlers
+window.switchMode        = switchMode;
+window.triggerBulkUpload = triggerBulkUpload;
+window.handleBulkUpload  = handleBulkUpload;
+window.continueFromUpload = continueFromUpload;
+window.removeUploadedPhoto = removeUploadedPhoto;
+window.handleSingleUpload  = handleSingleUpload;

@@ -27,90 +27,10 @@
   <main class="page-wrapper">
     <div class="section-head fade-in">
       <h2>Select a Layout</h2>
-      <p>Choose your photo strip format — just like at the Life4Cuts booth!</p>
+      <p>Choose your photo strip format — then customize your strip on the next page!</p>
     </div>
 
-    <div class="layout-and-customize">
     <div id="layoutGrid" class="layout-grid stagger"></div>
-
-    <!-- CUSTOMIZE PANEL -->
-    <div id="customizePanel" class="customize-panel hidden">
-      <div class="customize-inner">
-
-        <div class="customize-header">
-          <div class="customize-title">
-            <span class="customize-icon">🎨</span>
-            <div>
-              <h3>Customize Your Strip</h3>
-              <p>Pick a color, add text &amp; date</p>
-            </div>
-          </div>
-          <div class="selected-layout-badge" id="selectedLayoutBadge"></div>
-        </div>
-
-        <!-- Strip Color -->
-        <div class="customize-section">
-          <label class="customize-label">Strip Background Color</label>
-          <div class="color-swatches" id="colorSwatches">
-            <div class="swatch-group-label">Pastels</div>
-            <button class="color-swatch selected" data-color="#ffffff" data-name="White"    style="background:#ffffff;"  title="White"></button>
-            <button class="color-swatch"          data-color="#ffe0ec" data-name="Blush"    style="background:#ffe0ec;"  title="Blush Pink"></button>
-            <button class="color-swatch"          data-color="#f0e6ff" data-name="Lavender" style="background:#f0e6ff;"  title="Lavender"></button>
-            <button class="color-swatch"          data-color="#d6f5f0" data-name="Mint"     style="background:#d6f5f0;"  title="Mint"></button>
-            <button class="color-swatch"          data-color="#ffecd9" data-name="Peach"    style="background:#ffecd9;"  title="Peach"></button>
-            <button class="color-swatch"          data-color="#d4ecff" data-name="Sky"      style="background:#d4ecff;"  title="Sky Blue"></button>
-            <button class="color-swatch"          data-color="#fff3c2" data-name="Lemon"    style="background:#fff3c2;"  title="Lemon"></button>
-            <button class="color-swatch"          data-color="#fce4f8" data-name="Lilac"    style="background:#fce4f8;"  title="Lilac"></button>
-            <div class="swatch-group-label" style="margin-top:10px;">Dark</div>
-            <button class="color-swatch dark-swatch" data-color="#1a1a1a" data-name="Black"       style="background:#1a1a1a;" title="Black"></button>
-            <button class="color-swatch dark-swatch" data-color="#1e1b2e" data-name="Night Purple" style="background:#1e1b2e;" title="Night Purple"></button>
-            <button class="color-swatch dark-swatch" data-color="#0f1f18" data-name="Dark Green"   style="background:#0f1f18;" title="Dark Green"></button>
-            <button class="color-swatch dark-swatch" data-color="#1a0a0a" data-name="Dark Red"     style="background:#1a0a0a;" title="Dark Red"></button>
-            <button class="color-swatch dark-swatch" data-color="#0d1b2a" data-name="Dark Navy"    style="background:#0d1b2a;" title="Dark Navy"></button>
-            <button class="color-swatch dark-swatch" data-color="#2d2016" data-name="Dark Brown"   style="background:#2d2016;" title="Dark Brown"></button>
-            <button class="color-swatch dark-swatch" data-color="#1f1f1f" data-name="Charcoal"     style="background:#1f1f1f;" title="Charcoal"></button>
-            <button class="color-swatch dark-swatch" data-color="#12141c" data-name="Midnight"     style="background:#12141c;" title="Midnight"></button>
-          </div>
-          <p class="color-name-label" id="colorNameLabel">White</p>
-        </div>
-
-        <!-- Custom Text + Date row -->
-        <div class="customize-section">
-          <div class="text-date-row">
-            <!-- Text -->
-            <div class="text-date-col grow">
-              <label class="customize-label" for="customTextInput">
-                Strip Text <span style="color:var(--text-light);font-weight:600;">(optional)</span>
-              </label>
-              <div class="text-input-wrap">
-                <input type="text" id="customTextInput" class="custom-text-input"
-                  placeholder="e.g. BFFs 4ever ♡" maxlength="40">
-                <span class="char-counter" id="charCounter">0/40</span>
-              </div>
-            </div>
-            <!-- Date -->
-            <div class="text-date-col">
-              <label class="customize-label" for="customDateInput">Date</label>
-              <input type="date" id="customDateInput" class="custom-date-input">
-            </div>
-          </div>
-
-          <div class="text-suggestions" style="margin-top:10px;">
-            <span class="text-sug-label">Quick text:</span>
-            <button class="text-sug" onclick="setCustomText('best friends ♡')">best friends ♡</button>
-            <button class="text-sug" onclick="setCustomText('memories 🌸')">memories 🌸</button>
-            <button class="text-sug" onclick="setCustomText('인생네컷 ✦')">인생네컷 ✦</button>
-          </div>
-        </div>
-
-        <button class="btn btn-primary btn-lg continue-btn" id="continueBtn" onclick="continueToCamera()">
-          <span>✦</span> Continue →
-        </button>
-
-      </div>
-    </div>
-
-    </div><!-- end layout-and-customize -->
 
   </main>
 

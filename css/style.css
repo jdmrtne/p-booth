@@ -530,12 +530,21 @@ body::after {
 
 /* ─── CAMERA PAGE ─── */
 .camera-layout {
-  display: grid; grid-template-columns: 1fr 270px; gap: 16px;
-  max-width: 980px; margin: 0 auto; padding: 0 24px 12px;
+  display: grid; grid-template-columns: 234px 1fr 210px; gap: 12px;
+  max-width: 1180px; margin: 0 auto; padding: 0 18px 10px;
   align-items: stretch; height: 100%;
   box-sizing: border-box;
   position: relative; z-index: 1;
 }
+/* left panel = customize; right panel = preview/tips */
+.camera-left-panel  { display: flex; flex-direction: column; gap: 10px; height: 100%; overflow: hidden; }
+.camera-right-panel { display: flex; flex-direction: column; gap: 10px; height: 100%; overflow: hidden; }
+/* sidebar-panel inside left/right panels — remove bottom margin so gap handles spacing */
+.camera-left-panel  .sidebar-panel,
+.camera-right-panel .sidebar-panel { margin-bottom: 0; }
+/* live preview canvas fills available height */
+.camera-right-panel .live-preview-wrap { flex: 1; min-height: 0; }
+.camera-right-panel .live-preview-wrap canvas { width: 100% !important; height: auto !important; }
 .camera-viewfinder {
   position: relative; background: #1a0a24;
   border-radius: var(--radius-lg); overflow: hidden;
@@ -940,7 +949,8 @@ canvas#snapshot { display: none; }
 
   /* Camera page */
   .camera-layout  { grid-template-columns: 1fr; padding: 0 16px 40px; }
-  .camera-sidebar { display: none; }
+  .camera-left-panel  { display: none; }
+  .camera-right-panel { display: none; }
   .mode-toggle-wrap { padding: 10px 16px 0; }
   .mode-btn { padding: 10px 16px; font-size: 0.72rem; }
 
@@ -1046,3 +1056,27 @@ canvas#snapshot { display: none; }
 .dark-swatch.selected::after { color: rgba(255,255,255,0.8); }
 .dark-swatch { border: 3px solid #444 !important; }
 .dark-swatch.selected { border-color: var(--pink) !important; }
+
+/* ── Sidebar customize panel tweaks ── */
+#customizeSidePanel h3 { margin-bottom: 10px; }
+#customizeSidePanel .sidebar-color-grid { gap: 5px; }
+#customizeSidePanel .sidebar-swatch {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+  transition: transform .15s, border-color .15s; outline: none;
+}
+#customizeSidePanel .sidebar-swatch:hover { transform: scale(1.2); }
+#customizeSidePanel .sidebar-swatch.selected {
+  border-color: var(--pink) !important; transform: scale(1.2);
+  box-shadow: 0 0 0 2px rgba(255,107,157,.3);
+}
+#customizeSidePanel .sidebar-swatch[data-color="#ffffff"] { border-color: #ddd; }
+
+/* Reorder hint animation */
+.upload-slot-reorder-hint.visible {
+  animation: fadeInUp .3s ease;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
