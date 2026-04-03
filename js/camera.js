@@ -6,29 +6,93 @@ const LAYOUTS_CAM = {
   CUT8:  { id:'CUT8',  name:'Double Strip',  kr:'인생8컷',    shots:8, format:'2 strips × 4',cols:2, rows:4, type:'doublestrip', accentColor:'#fbbf24' },
 };
 
-let stream          = null;
-let capturedPhotos  = [];
-let isCapturing     = false;
-let layoutConfig    = null;
-let currentMode     = 'camera'; // 'camera' | 'upload'
-let uploadedPhotos  = [];
+let stream         = null;
+let capturedPhotos = [];
+let isCapturing    = false;
+let layoutConfig   = null;
+let currentMode    = 'camera';
+let uploadedPhotos = [];
 
-// DOM refs
 let videoEl, snapshotCanvas, countdownOverlay, countdownNumber, countdownLabel,
     flashOverlay, shotBarFill, shotLabelCurrent, shotLabelTotal, statusMsg,
     startBtn, cameraArea, readyState, permissionError, thumbnailsGrid,
     layoutBadgeName, layoutBadgeSub, layoutBadgeIcon, mobileThumbs;
 
+// ─── IMAGE COMPRESSION ───────────────────────────────────────────
+// Resize + compress to JPEG before storing, keeps sessionStorage < 4MB
+function compressImage(dataUrl, maxSide = 800, quality = 0.75) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const scale  = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // fallback: use original
+    img.src = dataUrl;
+  });
+}
+
+// Safe sessionStorage set — clears photos if quota is exceeded
+function safeSetPhotos(photos) {
+  try {
+    sessionStorage.setItem('photobooth_photos', JSON.stringify(photos));
+  } catch (e) {
+    if (e.name === 'QuotaExceededError') {
+      // Try with lower quality
+      console.warn('Quota exceeded, re-compressing…');
+      Promise.all(photos.map(p => p ? compressImage(p, 600, 0.6) : Promise.resolve(null)))
+        .then(recompressed => {
+          try {
+            sessionStorage.setItem('photobooth_photos', JSON.stringify(recompressed));
+          } catch (e2) {
+            // Use IndexedDB as final fallback
+            savePhotosToIDB(recompressed);
+          }
+        });
+    }
+  }
+}
+
+// IndexedDB fallback for very large sets (8 shots)
+function savePhotosToIDB(photos) {
+  const req = indexedDB.open('pbooth', 1);
+  req.onupgradeneeded = e => e.target.result.createObjectStore('photos');
+  req.onsuccess = e => {
+    const tx = e.target.result.transaction('photos', 'readwrite');
+    tx.objectStore('photos').put(JSON.stringify(photos), 'current');
+    tx.oncomplete = () => {
+      sessionStorage.setItem('photobooth_photos_idb', '1');
+      window.location.href = 'result.html';
+    };
+  };
+}
+
+function loadPhotosFromIDB() {
+  return new Promise(resolve => {
+    if (!sessionStorage.getItem('photobooth_photos_idb')) { resolve(null); return; }
+    const req = indexedDB.open('pbooth', 1);
+    req.onsuccess = e => {
+      const tx = e.target.result.transaction('photos', 'readonly');
+      const gr = tx.objectStore('photos').get('current');
+      gr.onsuccess = () => {
+        try { resolve(JSON.parse(gr.result)); } catch { resolve(null); }
+      };
+      gr.onerror = () => resolve(null);
+    };
+    req.onerror = () => resolve(null);
+  });
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   const layoutId = sessionStorage.getItem('photobooth_layout');
-  if (!layoutId || !LAYOUTS_CAM[layoutId]) {
-    window.location.href = 'index.html';
-    return;
-  }
+  if (!layoutId || !LAYOUTS_CAM[layoutId]) { window.location.href = 'index.html'; return; }
   layoutConfig = LAYOUTS_CAM[layoutId];
 
-  // Bind DOM
   videoEl          = document.getElementById('video');
   snapshotCanvas   = document.getElementById('snapshot');
   countdownOverlay = document.getElementById('countdownOverlay');
@@ -49,90 +113,82 @@ document.addEventListener('DOMContentLoaded', async () => {
   layoutBadgeIcon  = document.getElementById('layoutBadgeIcon');
   mobileThumbs     = document.getElementById('mobileThumbs');
 
-  // Set layout badge
   if (layoutBadgeName) layoutBadgeName.textContent = layoutConfig.name;
   if (layoutBadgeSub)  layoutBadgeSub.textContent  = `${layoutConfig.shots} shots · ${layoutConfig.format}`;
   if (layoutBadgeIcon) {
-    layoutBadgeIcon.textContent = layoutConfig.kr;
-    layoutBadgeIcon.style.color = layoutConfig.accentColor;
-    layoutBadgeIcon.style.borderColor = layoutConfig.accentColor + '55';
+    layoutBadgeIcon.textContent      = layoutConfig.kr;
+    layoutBadgeIcon.style.color      = layoutConfig.accentColor;
+    layoutBadgeIcon.style.borderColor= layoutConfig.accentColor + '55';
   }
 
-  // Progress bar accent
-  if (shotBarFill) shotBarFill.style.background = `linear-gradient(90deg, ${layoutConfig.accentColor}, ${shiftHue(layoutConfig.accentColor)})`;
-  if (shotLabelCurrent) shotLabelCurrent.style.color = layoutConfig.accentColor;
-  if (shotLabelTotal)   shotLabelTotal.textContent   = `of ${layoutConfig.shots}`;
+  if (shotBarFill)      shotBarFill.style.background = `linear-gradient(90deg,${layoutConfig.accentColor},${shiftHue(layoutConfig.accentColor)})`;
+  if (shotLabelCurrent) shotLabelCurrent.style.color  = layoutConfig.accentColor;
+  if (shotLabelTotal)   shotLabelTotal.textContent    = `of ${layoutConfig.shots}`;
 
-  const readyDesc  = document.getElementById('readyDesc');
-  if (readyDesc)   readyDesc.textContent = `${layoutConfig.shots} shots will be taken — get ready to strike your poses!`;
-  const poseBadge  = document.getElementById('poseBadge');
-  if (poseBadge)   poseBadge.textContent = `${layoutConfig.shots} shots · ${layoutConfig.kr}`;
+  const readyDesc = document.getElementById('readyDesc');
+  if (readyDesc) readyDesc.textContent = `${layoutConfig.shots} shots — get ready to strike your poses!`;
+  const poseBadge = document.getElementById('poseBadge');
+  if (poseBadge)  poseBadge.textContent = `${layoutConfig.shots} shots · ${layoutConfig.kr}`;
 
-  // Strip style sidebar
   const savedColor = sessionStorage.getItem('photobooth_strip_color') || '#ffffff';
   const savedText  = sessionStorage.getItem('photobooth_custom_text') || '';
   updateStripStyleSidebar(savedColor, savedText);
 
   buildThumbnailGrid();
   startBtn?.addEventListener('click', beginSession);
-
-  // Build upload slots
   buildUploadSlots();
-
   await initCamera();
+
+  // Show blank strip preview immediately on load
+  updateLivePreview();
 });
 
-// ─── STRIP STYLE SIDEBAR ─────────────────────────────────────────
+// ─── SIDEBAR STYLE ───────────────────────────────────────────────
 function updateStripStyleSidebar(color, text) {
-  const dot = document.getElementById('sidebarColorDot');
-  const name = document.getElementById('sidebarColorName');
-  const textPrev = document.getElementById('sidebarTextPreview');
-
   const COLOR_NAMES = {
     '#ffffff':'White','#ffe0ec':'Blush','#f0e6ff':'Lavender','#d6f5f0':'Mint',
     '#ffecd9':'Peach','#d4ecff':'Sky','#fff3c2':'Lemon','#fce4f8':'Lilac',
+    '#1a1a1a':'Black','#1e1b2e':'Night Purple','#0f1f18':'Dark Green',
+    '#1a0a0a':'Dark Red','#0d1b2a':'Dark Navy','#2d2016':'Dark Brown',
+    '#1f1f1f':'Charcoal','#12141c':'Midnight',
   };
-
-  if (dot) {
-    dot.style.background = color;
-    dot.style.borderColor = color === '#ffffff' ? '#ddd' : color;
-  }
+  const dot      = document.getElementById('sidebarColorDot');
+  const name     = document.getElementById('sidebarColorName');
+  const textPrev = document.getElementById('sidebarTextPreview');
+  if (dot)  { dot.style.background = color; dot.style.borderColor = color === '#ffffff' ? '#ddd' : color; }
   if (name) name.textContent = COLOR_NAMES[color] || 'Custom';
-  if (textPrev && text) textPrev.textContent = `"${text}"`;
-  else if (textPrev)    textPrev.textContent = '';
+  if (textPrev) textPrev.textContent = text ? `"${text}"` : '';
 }
 
 // ─── MODE TOGGLE ─────────────────────────────────────────────────
 function switchMode(mode) {
   currentMode = mode;
   const cameraView = document.getElementById('cameraModeView');
-  const uploadView = document.getElementById('uploadModeView');
-  const camBtn     = document.getElementById('modeCameraBtn');
-  const upBtn      = document.getElementById('modeUploadBtn');
+  const uploadView  = document.getElementById('uploadModeView');
+  const camBtn      = document.getElementById('modeCameraBtn');
+  const upBtn       = document.getElementById('modeUploadBtn');
 
   if (mode === 'camera') {
     cameraView.style.display = '';
-    uploadView.style.display = 'none';
+    uploadView.style.display  = 'none';
     camBtn.classList.add('active');
     upBtn.classList.remove('active');
     initCamera();
   } else {
-    cameraView.style.display = 'none';
-    uploadView.style.display = '';
+    cameraView.style.display  = 'none';
+    uploadView.style.display  = '';
     camBtn.classList.remove('active');
     upBtn.classList.add('active');
-    // Stop camera stream when switching to upload
     if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   }
 }
 
 // ─── CAMERA INIT ─────────────────────────────────────────────────
 async function initCamera() {
-  if (currentMode !== 'camera') return;
-  if (stream) return; // already running
+  if (currentMode !== 'camera' || stream) return;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: 'user' },
+      video: { width:{ideal:1280}, height:{ideal:960}, facingMode:'user' },
       audio: false,
     });
     if (videoEl) { videoEl.srcObject = stream; await videoEl.play(); }
@@ -146,9 +202,10 @@ async function initCamera() {
 // ─── THUMBNAIL GRID ──────────────────────────────────────────────
 function buildThumbnailGrid() {
   if (!thumbnailsGrid) return;
-
+  // cols-2 for doublestrip (2 vertical strips side by side) and grid2x2
+  // cols-1 for single strips
   let colClass = 'cols-1';
-  if (layoutConfig.type === 'doublestrip') colClass = 'cols-4';
+  if (layoutConfig.type === 'doublestrip') colClass = 'cols-2';
   else if (layoutConfig.type === 'grid2x2') colClass = 'cols-2';
 
   thumbnailsGrid.className = `thumbnails-grid ${colClass}`;
@@ -163,7 +220,6 @@ function buildThumbnailGrid() {
     thumbnailsGrid.appendChild(slot);
   }
 
-  // Mobile thumbnails
   if (mobileThumbs) {
     mobileThumbs.innerHTML = '';
     const max = Math.min(layoutConfig.shots, 4);
@@ -188,12 +244,12 @@ function buildThumbnailGrid() {
 
 // ─── UPLOAD MODE ─────────────────────────────────────────────────
 function buildUploadSlots() {
-  const grid = document.getElementById('uploadSlotsGrid');
+  const grid           = document.getElementById('uploadSlotsGrid');
   const uploadTitle    = document.getElementById('uploadTitle');
   const uploadSubtitle = document.getElementById('uploadSubtitle');
   if (!grid) return;
 
-  if (uploadTitle)    uploadTitle.textContent = `Upload ${layoutConfig.shots} Photo${layoutConfig.shots > 1 ? 's' : ''}`;
+  if (uploadTitle)    uploadTitle.textContent    = `Upload ${layoutConfig.shots} Photo${layoutConfig.shots>1?'s':''}`;
   if (uploadSubtitle) uploadSubtitle.textContent = `Tap each slot to choose a photo (${layoutConfig.shots} needed)`;
 
   uploadedPhotos = new Array(layoutConfig.shots).fill(null);
@@ -203,22 +259,22 @@ function buildUploadSlots() {
   else if (layoutConfig.type === 'doublestrip') cols = 4;
   else if (layoutConfig.shots > 4) cols = 2;
 
-  grid.style.gridTemplateColumns = `repeat(${Math.min(cols, 4)}, 1fr)`;
+  grid.style.gridTemplateColumns = `repeat(${Math.min(cols,4)}, 1fr)`;
   grid.innerHTML = '';
 
   for (let i = 0; i < layoutConfig.shots; i++) {
     const slot = document.createElement('div');
-    slot.className = 'upload-slot';
-    slot.id = `upload-slot-${i}`;
+    slot.className    = 'upload-slot';
+    slot.id           = `upload-slot-${i}`;
     slot.dataset.index = i;
     slot.innerHTML = `
       <div class="upload-slot-placeholder" id="upload-placeholder-${i}">
         <span class="upload-slot-icon">+</span>
-        <span class="upload-slot-num">Photo ${i + 1}</span>
+        <span class="upload-slot-num">Photo ${i+1}</span>
       </div>
       <img class="upload-slot-img" id="upload-img-${i}" src="" alt="Photo ${i+1}" style="display:none;">
-      <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i}, event)">✕</button>
-      <input type="file" accept="image/*" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event, ${i})">
+      <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)">✕</button>
+      <input type="file" accept="image/*" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
     `;
     slot.addEventListener('click', () => triggerSingleUpload(i));
     grid.appendChild(slot);
@@ -228,35 +284,33 @@ function buildUploadSlots() {
 function triggerSingleUpload(index) {
   document.getElementById(`upload-file-${index}`)?.click();
 }
-
 function triggerBulkUpload() {
   const input = document.getElementById('bulkFileInput');
   if (input) { input.multiple = true; input.click(); }
 }
 
-function handleSingleUpload(event, index) {
+async function handleSingleUpload(event, index) {
   const file = event.target.files?.[0];
   if (!file) return;
-  readFileAsDataUrl(file).then(dataUrl => {
-    setUploadedPhoto(index, dataUrl);
-  });
+  const raw        = await readFileAsDataUrl(file);
+  const compressed = await compressImage(raw, 900, 0.78);
+  setUploadedPhoto(index, compressed);
 }
 
-function handleBulkUpload(event) {
-  const files = Array.from(event.target.files || []);
-  const limit = Math.min(files.length, layoutConfig.shots);
-  const promises = files.slice(0, limit).map(f => readFileAsDataUrl(f));
-  Promise.all(promises).then(dataUrls => {
-    dataUrls.forEach((url, i) => setUploadedPhoto(i, url));
-  });
+async function handleBulkUpload(event) {
+  const files  = Array.from(event.target.files || []);
+  const limit  = Math.min(files.length, layoutConfig.shots);
+  const raws   = await Promise.all(files.slice(0, limit).map(f => readFileAsDataUrl(f)));
+  const compressed = await Promise.all(raws.map(r => compressImage(r, 900, 0.78)));
+  compressed.forEach((url, i) => setUploadedPhoto(i, url));
 }
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const r = new FileReader();
+    r.onload  = e => resolve(e.target.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
   });
 }
 
@@ -273,10 +327,8 @@ function setUploadedPhoto(index, dataUrl) {
   if (img)         { img.src = dataUrl; img.style.display = 'block'; }
   if (removeBtn)   removeBtn.style.display = 'flex';
 
-  // Also update sidebar thumbnails
   updateThumbnail(index, dataUrl);
 
-  // Update progress
   const filled   = uploadedPhotos.filter(Boolean).length;
   const progWrap = document.getElementById('uploadProgressWrap');
   const progFill = document.getElementById('uploadProgressFill');
@@ -284,25 +336,22 @@ function setUploadedPhoto(index, dataUrl) {
   const contBtn  = document.getElementById('uploadContinueBtn');
 
   if (progWrap) progWrap.style.display = '';
-  if (progFill) progFill.style.width   = `${(filled / layoutConfig.shots) * 100}%`;
+  if (progFill) progFill.style.width   = `${(filled/layoutConfig.shots)*100}%`;
   if (progLbl)  progLbl.textContent    = `${filled} of ${layoutConfig.shots} photos selected`;
 
   const allFilled = filled >= layoutConfig.shots;
-  if (contBtn) {
-    contBtn.disabled     = !allFilled;
-    contBtn.style.opacity = allFilled ? '1' : '.5';
-  }
+  if (contBtn) { contBtn.disabled = !allFilled; contBtn.style.opacity = allFilled ? '1' : '.5'; }
 }
 
 function removeUploadedPhoto(index, event) {
   event?.stopPropagation();
   uploadedPhotos[index] = null;
 
-  const slot        = document.getElementById(`upload-slot-${index}`);
+  const slot      = document.getElementById(`upload-slot-${index}`);
   const placeholder = document.getElementById(`upload-placeholder-${index}`);
-  const img         = document.getElementById(`upload-img-${index}`);
-  const removeBtn   = document.getElementById(`upload-remove-${index}`);
-  const fileInput   = document.getElementById(`upload-file-${index}`);
+  const img       = document.getElementById(`upload-img-${index}`);
+  const removeBtn = document.getElementById(`upload-remove-${index}`);
+  const fileInput = document.getElementById(`upload-file-${index}`);
 
   if (slot)        slot.classList.remove('filled');
   if (placeholder) placeholder.style.display = '';
@@ -310,7 +359,6 @@ function removeUploadedPhoto(index, event) {
   if (removeBtn)   removeBtn.style.display = 'none';
   if (fileInput)   fileInput.value = '';
 
-  // Update sidebar thumbnail
   const thumbSlot = document.getElementById(`thumb-${index}`);
   const thumbImg  = document.getElementById(`thumb-img-${index}`);
   if (thumbSlot) thumbSlot.classList.remove('captured');
@@ -321,30 +369,39 @@ function removeUploadedPhoto(index, event) {
   const progLbl  = document.getElementById('uploadProgressLabel');
   const contBtn  = document.getElementById('uploadContinueBtn');
 
-  if (progFill) progFill.style.width   = `${(filled / layoutConfig.shots) * 100}%`;
+  if (progFill) progFill.style.width   = `${(filled/layoutConfig.shots)*100}%`;
   if (progLbl)  progLbl.textContent    = `${filled} of ${layoutConfig.shots} photos selected`;
-  if (contBtn) {
-    contBtn.disabled     = filled < layoutConfig.shots;
-    contBtn.style.opacity = filled >= layoutConfig.shots ? '1' : '.5';
-  }
+  if (contBtn)  { contBtn.disabled = filled < layoutConfig.shots; contBtn.style.opacity = filled >= layoutConfig.shots ? '1' : '.5'; }
 }
 
-function continueFromUpload() {
+async function continueFromUpload() {
   if (uploadedPhotos.filter(Boolean).length < layoutConfig.shots) return;
-  sessionStorage.setItem('photobooth_photos', JSON.stringify(uploadedPhotos));
-  window.location.href = 'result.html';
+  const btn = document.getElementById('uploadContinueBtn');
+  if (btn) { btn.textContent = 'Preparing…'; btn.disabled = true; }
+
+  // Compress before saving
+  const compressed = await Promise.all(
+    uploadedPhotos.map(p => p ? compressImage(p, 900, 0.78) : Promise.resolve(null))
+  );
+
+  safeSetPhotos(compressed);
+
+  // If IDB was used, don't redirect yet (handled inside safeSetPhotos)
+  if (!sessionStorage.getItem('photobooth_photos_idb')) {
+    window.location.href = 'result.html';
+  }
 }
 
 // ─── CAMERA SESSION ──────────────────────────────────────────────
 async function beginSession() {
   if (isCapturing) return;
-  isCapturing = true;
+  isCapturing    = true;
   capturedPhotos = new Array(layoutConfig.shots).fill(null);
 
   readyState?.classList.add('hidden');
-  if (videoEl)    videoEl.style.display = 'block';
+  if (videoEl)        videoEl.style.display        = 'block';
   if (snapshotCanvas) snapshotCanvas.style.display = 'none';
-  if (startBtn) { startBtn.disabled = true; startBtn.style.opacity = '.5'; }
+  if (startBtn)       { startBtn.disabled = true; startBtn.style.opacity = '.5'; }
 
   updateProgress(0);
   await captureSequence();
@@ -352,15 +409,17 @@ async function beginSession() {
 
 async function captureSequence() {
   for (let i = 0; i < layoutConfig.shots; i++) {
-    updateStatus(`Photo ${i + 1} of ${layoutConfig.shots}`, true);
+    updateStatus(`Photo ${i+1} of ${layoutConfig.shots}`, true);
     updateProgress(i);
-    if (shotLabelCurrent) shotLabelCurrent.textContent = `Photo ${i + 1}`;
+    if (shotLabelCurrent) shotLabelCurrent.textContent = `Photo ${i+1}`;
 
-    await runCountdown(3, `Shot ${i + 1} of ${layoutConfig.shots}`);
+    await runCountdown(3, `Shot ${i+1} of ${layoutConfig.shots}`);
 
-    const dataUrl = captureFrame();
-    capturedPhotos[i] = dataUrl;
-    updateThumbnail(i, dataUrl);
+    const dataUrl    = captureFrame();
+    // Compress camera capture too (mitigates quota for 8-cut sessions)
+    const compressed = await compressImage(dataUrl, 900, 0.80);
+    capturedPhotos[i] = compressed;
+    updateThumbnail(i, compressed);
     triggerFlash();
 
     if (i < layoutConfig.shots - 1) {
@@ -371,9 +430,11 @@ async function captureSequence() {
 
   updateProgress(layoutConfig.shots);
   updateStatus('All done! Building your strip…', true);
-  sessionStorage.setItem('photobooth_photos', JSON.stringify(capturedPhotos));
+  safeSetPhotos(capturedPhotos);
   await sleep(650);
-  window.location.href = 'result.html';
+  if (!sessionStorage.getItem('photobooth_photos_idb')) {
+    window.location.href = 'result.html';
+  }
 }
 
 function runCountdown(from, label) {
@@ -396,21 +457,20 @@ function runCountdown(from, label) {
 
 function captureFrame() {
   if (!videoEl || !snapshotCanvas) return null;
-  const w = videoEl.videoWidth || 1280;
+  const w = videoEl.videoWidth  || 1280;
   const h = videoEl.videoHeight || 960;
-  snapshotCanvas.width = w;
-  snapshotCanvas.height = h;
+  snapshotCanvas.width = w; snapshotCanvas.height = h;
   const ctx = snapshotCanvas.getContext('2d');
   ctx.translate(w, 0); ctx.scale(-1, 1);
   ctx.drawImage(videoEl, 0, 0, w, h);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  return snapshotCanvas.toDataURL('image/jpeg', 0.92);
+  return snapshotCanvas.toDataURL('image/jpeg', 0.85);
 }
 
 function triggerFlash() {
   if (!flashOverlay) return;
   flashOverlay.style.transition = 'opacity 0.05s';
-  flashOverlay.style.opacity = '1';
+  flashOverlay.style.opacity    = '1';
   setTimeout(() => { flashOverlay.style.transition = 'opacity 0.45s ease-out'; flashOverlay.style.opacity = '0'; }, 60);
 }
 
@@ -424,13 +484,48 @@ function updateThumbnail(i, dataUrl) {
   const mobImg  = document.getElementById(`mob-img-${i}`);
   if (mobSlot) { mobSlot.style.borderStyle = 'solid'; mobSlot.style.borderColor = layoutConfig.accentColor + '88'; }
   if (mobImg)  { mobImg.src = dataUrl; mobImg.style.opacity = '1'; }
+
+  // Update live strip preview in sidebar
+  updateLivePreview();
+}
+
+// ─── LIVE STRIP PREVIEW ──────────────────────────────────────────
+let previewDebounce = null;
+async function updateLivePreview() {
+  const canvas      = document.getElementById('liveStripCanvas');
+  const placeholder = document.getElementById('livePreviewPlaceholder');
+  const countEl     = document.getElementById('previewShotCount');
+  if (!canvas || !layoutConfig) return;
+
+  // Show how many shots captured
+  const done = capturedPhotos.filter(Boolean).length;
+  if (countEl) countEl.textContent = `${done}/${layoutConfig.shots} shots`;
+
+  // Debounce so rapid captures don't stack up
+  clearTimeout(previewDebounce);
+  previewDebounce = setTimeout(async () => {
+    try {
+      // Build photo array — null for uncaptured slots
+      const photos = Array.from({ length: layoutConfig.shots }, (_, i) => capturedPhotos[i] || null);
+      const strip  = await generatePhotoStrip(photos, layoutConfig);
+
+      // Scale to fit sidebar (~250px wide)
+      const PREVIEW_W = 250;
+      const scale     = PREVIEW_W / strip.width;
+      canvas.width    = PREVIEW_W;
+      canvas.height   = Math.round(strip.height * scale);
+      canvas.getContext('2d').drawImage(strip, 0, 0, canvas.width, canvas.height);
+      canvas.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'none';
+    } catch (e) {
+      console.warn('Preview error:', e);
+    }
+  }, 150);
 }
 
 function updateProgress(done) {
-  const pct = (done / layoutConfig.shots) * 100;
-  if (shotBarFill) shotBarFill.style.width = `${pct}%`;
+  if (shotBarFill) shotBarFill.style.width = `${(done/layoutConfig.shots)*100}%`;
 }
-
 function updateStatus(msg, active) {
   if (!statusMsg) return;
   statusMsg.textContent = msg;
@@ -438,12 +533,11 @@ function updateStatus(msg, active) {
 }
 
 // ─── UTILS ───────────────────────────────────────────────────────
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
+function sleep(ms)  { return new Promise(r => setTimeout(r, ms)); }
 function shiftHue(hex) {
-  const map = { '#ff6b9d':'#c026d3','#a855f7':'#7c3aed','#2dd4bf':'#0891b2','#fbbf24':'#f97316' };
-  return map[hex] || '#a855f7';
+  const m = {'#ff6b9d':'#c026d3','#a855f7':'#7c3aed','#2dd4bf':'#0891b2','#fbbf24':'#f97316'};
+  return m[hex] || '#a855f7';
 }
 
 window.addEventListener('beforeunload', () => { stream?.getTracks().forEach(t => t.stop()); });
-window.retakePhotos = () => { sessionStorage.removeItem('photobooth_photos'); window.location.reload(); };
+window.retakePhotos = () => { sessionStorage.removeItem('photobooth_photos'); sessionStorage.removeItem('photobooth_photos_idb'); window.location.reload(); };

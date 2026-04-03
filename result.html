@@ -5,22 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>p-booth — Your Strip</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    main { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: stretch; }
+    .result-layout { flex: 1; min-height: 0; overflow: hidden; }
+    .strip-frame   { overflow: hidden; }
+    .strip-frame canvas { max-height: 100%; max-width: 100%; }
+  </style>
 </head>
 <body>
 
-  <header class="site-header" style="padding-bottom:0;">
-    <span class="eyebrow">♡ 인생네컷 스타일 ♡</span>
-    <h1><span class="highlight">p-booth</span></h1>
-    <div class="header-rule"></div>
-  </header>
-
-  <div class="steps">
-    <div class="step done"><div class="step-num">✓</div><span>Layout</span></div>
-    <div class="divider"></div>
-    <div class="step done"><div class="step-num">✓</div><span>Capture</span></div>
-    <div class="divider"></div>
-    <div class="step active"><div class="step-num">3</div><span>Download</span></div>
-  </div>
+  <nav class="top-bar">
+    <a class="top-bar-logo" href="index.html">p-booth</a>
+    <div class="top-bar-steps">
+      <div class="step done"><div class="step-num">✓</div><span>Layout</span></div>
+      <div class="divider"></div>
+      <div class="step done"><div class="step-num">✓</div><span>Capture</span></div>
+      <div class="divider"></div>
+      <div class="step active"><div class="step-num">3</div><span>Download</span></div>
+    </div>
+    <div class="top-bar-right"></div>
+  </nav>
 
   <main>
     <div class="result-layout">
@@ -41,21 +47,20 @@
         <canvas id="resultCanvas"></canvas>
       </div>
 
-      <p class="confetti-msg hidden" id="successMsg">
-        ✨ Save it, share it, stick it on everything!
-      </p>
-
-      <!-- Action buttons -->
-      <div class="result-actions hidden" id="resultActions">
-        <button class="btn btn-primary btn-lg" id="downloadBtn" onclick="downloadStrip()">
-          ⬇ Download PNG
-        </button>
-        <button class="btn btn-purple btn-lg" onclick="retakePhotos()">
-          ↺ Retake Photos
-        </button>
-        <a class="btn btn-ghost btn-lg" href="index.html">
-          ⊞ New Layout
-        </a>
+      <!-- Right sidebar: message + actions -->
+      <div class="result-sidebar hidden" id="resultSidebar">
+        <p class="confetti-msg" id="successMsg">✨ Save it, share it, stick it on everything!</p>
+        <div class="result-actions" id="resultActions">
+          <button class="btn btn-primary btn-lg" id="downloadBtn" onclick="downloadStrip()">
+            ⬇ Download PNG
+          </button>
+          <button class="btn btn-purple btn-lg" onclick="retakePhotos()">
+            ↺ Retake Photos
+          </button>
+          <a class="btn btn-ghost btn-lg" href="index.html">
+            ⊞ New Layout
+          </a>
+        </div>
       </div>
 
       <!-- Error -->
@@ -113,8 +118,7 @@
     function showResult() {
       document.getElementById('processingState').classList.add('hidden');
       document.getElementById('stripFrame').classList.remove('hidden');
-      document.getElementById('resultActions').classList.remove('hidden');
-      document.getElementById('successMsg').classList.remove('hidden');
+      document.getElementById('resultSidebar').classList.remove('hidden');
     }
     function showError() {
       document.getElementById('processingState').classList.add('hidden');
