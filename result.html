@@ -13,15 +13,35 @@
   <link rel="apple-touch-icon" href="icon-192.svg">
   <link rel="stylesheet" href="css/style.css">
   <style>
-    html, body { height: 100%; overflow: hidden; }
-    body { display: flex; flex-direction: column; }
-    main { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: stretch; }
-    .result-layout { flex: 1; min-height: 0; overflow: hidden; }
-    .strip-frame   { overflow: hidden; }
-    .strip-frame canvas { max-height: 100%; max-width: 100%; }
+    /* Desktop: fixed full-viewport layout */
+    @media (min-width: 769px) {
+      html, body { height: 100%; overflow: hidden; }
+      main { overflow: hidden; }
+      .result-layout { overflow: hidden; }
+    }
+    body { display: flex; flex-direction: column; min-height: 100vh; }
+    main { flex: 1; min-height: 0; display: flex; align-items: stretch; }
+    .result-layout { flex: 1; min-height: 0; }
+    .strip-frame   { overflow: hidden; position: relative; }
+    .strip-frame canvas { max-height: 100%; max-width: 100%; display: block; }
+    #stickerLayer  { position: absolute; top: 0; left: 0; overflow: hidden; pointer-events: auto; display: none; }
   </style>
 </head>
-<body>
+<body class="result-page">
+
+  <!-- ─── LANDSCAPE GATE ─── -->
+  <div class="landscape-gate" id="landscapeGate">
+    <div class="lg-phone-wrap">
+      <div class="lg-phone">📷</div>
+      <div class="lg-arrow">↻</div>
+    </div>
+    <div class="lg-title">Landscape Recommended</div>
+    <p class="lg-sub">p-booth looks best in landscape — rotate your phone for the full experience</p>
+    <div class="lg-badge">✦ Landscape mode recommended</div>
+    <div class="landscape-gate-actions">
+      <button class="landscape-gate-dismiss" onclick="dismissLandscapeGate()">Continue in Portrait →</button>
+    </div>
+  </div>
 
   <nav class="top-bar">
     <a class="top-bar-logo" href="index.html">p-booth</a>
@@ -50,12 +70,25 @@
         <p>Developing your film… ♡</p>
       </div>
 
-      <div class="strip-frame fade-in hidden" id="stripFrame">
+      <div class="strip-frame fade-in hidden" id="stripFrame" style="position:relative;">
         <canvas id="resultCanvas"></canvas>
+        <!-- Sticker layer floats over the final canvas -->
+        <div id="stickerLayer" style="position:absolute;top:0;left:0;overflow:hidden;pointer-events:auto;display:none;"></div>
       </div>
 
       <div class="result-sidebar hidden" id="resultSidebar">
         <p class="confetti-msg" id="successMsg">✨ Save it, share it, stick it on everything!</p>
+
+        <!-- ── STICKER PANEL ── -->
+        <div id="stickerPanel" class="sticker-panel-wrap">
+          <div class="sticker-panel-header">
+            <span class="sticker-panel-title">🎨 Add Stickers</span>
+            <span class="sticker-panel-hint">Tap to add · Drag to move</span>
+          </div>
+          <div class="sticker-cat-tabs" id="stickerCatTabs"></div>
+          <div class="sticker-grid" id="stickerGrid"></div>
+        </div>
+
         <div class="result-actions" id="resultActions">
           <button class="btn btn-primary btn-lg" id="downloadBtn" onclick="downloadStrip()">
             ⬇ Download PNG
@@ -85,6 +118,31 @@
 
   <script src="js/canvas.js"></script>
   <script>
+    // ── Landscape gate (soft — dismissable) ──
+    function isMobileTouch() {
+      return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900;
+    }
+    function isPortrait() {
+      if (screen.orientation?.type) return screen.orientation.type.startsWith('portrait');
+      return window.innerHeight > window.innerWidth;
+    }
+    let _gateDismissed = false;
+    function checkLandscape() {
+      const gate = document.getElementById('landscapeGate');
+      if (!gate || _gateDismissed) return;
+      gate.classList.toggle('visible', isMobileTouch() && isPortrait());
+    }
+    function dismissLandscapeGate() {
+      _gateDismissed = true;
+      const gate = document.getElementById('landscapeGate');
+      if (gate) gate.classList.remove('visible');
+    }
+    checkLandscape();
+    window.addEventListener('resize', checkLandscape);
+    window.addEventListener('orientationchange', () => setTimeout(checkLandscape, 300));
+    if (screen.orientation) screen.orientation.addEventListener('change', () => setTimeout(checkLandscape, 300));
+
+    // ── LAYOUTS ──────────────────────────────────────────────────────
     const LAYOUTS_RES = {
       CUT4:  { id:'CUT4',  name:'Classic 4-Cut', kr:'인생4컷',    shots:4, format:'4 × 1 strip', cols:1, rows:4, type:'strip',       accentColor:'#ff6b9d' },
       CUT2:  { id:'CUT2',  name:'2-Cut Wide',    kr:'인생2컷',    shots:2, format:'2 × 1 strip', cols:1, rows:2, type:'strip',       accentColor:'#a855f7' },
@@ -112,58 +170,17 @@
 
       try {
         generatedCanvas = await generatePhotoStrip(photos, currentLayout);
-
-        // ── Apply stickers saved from camera.html ──────────────────
-        const stickersRaw = sessionStorage.getItem('photobooth_stickers');
-        if (stickersRaw) {
-          try {
-            const stickerData = JSON.parse(stickersRaw);
-            if (stickerData && stickerData.length > 0) {
-              await applyStickersToCanvas(generatedCanvas, stickerData);
-            }
-          } catch(e) { console.warn('Sticker apply failed:', e); }
-        }
-
         const rc = document.getElementById('resultCanvas');
         rc.width  = generatedCanvas.width;
         rc.height = generatedCanvas.height;
         rc.getContext('2d').drawImage(generatedCanvas, 0, 0);
         showResult();
+        buildStickerPanel();
+        positionStickerLayer();
       } catch(err) {
         console.error(err); showError();
       }
     });
-
-    // ── STICKER RENDERING ─────────────────────────────────────────────
-    // Each sticker is stored as fractions of the canvas dimensions.
-    // We draw each emoji at the correct scaled position using canvas 2D.
-    function applyStickersToCanvas(canvas, stickers) {
-      return new Promise(resolve => {
-        const ctx = canvas.getContext('2d');
-        const cw  = canvas.width;
-        const ch  = canvas.height;
-
-        stickers.forEach(stk => {
-          const cx   = stk.xFrac    * cw;
-          const cy   = stk.yFrac    * ch;
-          const size = stk.sizeFrac * cw;
-          const rot  = (stk.rotation || 0) * Math.PI / 180;
-
-          ctx.save();
-          ctx.globalAlpha  = 1;          // ← ensure full opacity regardless of prior ctx state
-          ctx.fillStyle    = '#000000';  // ← reset fillStyle alpha that drawFooter leaves behind
-          ctx.translate(cx, cy);
-          ctx.rotate(rot);
-          ctx.font         = `${size}px serif`;
-          ctx.textAlign    = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(stk.emoji, 0, 0);
-          ctx.restore();
-        });
-
-        resolve();
-      });
-    }
 
     function showResult() {
       document.getElementById('processingState').classList.add('hidden');
@@ -175,31 +192,275 @@
       document.getElementById('errorState').classList.remove('hidden');
     }
 
-    function downloadStrip() {
+    // ── DOWNLOAD — bakes stickers into a fresh canvas ─────────────────
+    async function downloadStrip() {
       if (!generatedCanvas) return;
       const btn = document.getElementById('downloadBtn');
-      btn.textContent = '✓ Saved!';
-      btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-      setTimeout(() => { btn.innerHTML = '⬇ Download PNG'; btn.style.background = ''; }, 2000);
+      btn.textContent = '⏳ Saving…';
+      btn.disabled = true;
+
+      // Create a fresh output canvas
+      const out = document.createElement('canvas');
+      out.width  = generatedCanvas.width;
+      out.height = generatedCanvas.height;
+      const ctx  = out.getContext('2d');
+      ctx.drawImage(generatedCanvas, 0, 0);
+
+      // Bake stickers from the live layer into the canvas
+      bakeStickersToCan(ctx, out.width, out.height);
+
       const ts = new Date().toISOString().slice(0,10).replace(/-/g,'');
-      downloadCanvas(generatedCanvas, `pbooth-${currentLayout?.id || 'strip'}-${ts}.png`);
+      downloadCanvas(out, `pbooth-${currentLayout?.id || 'strip'}-${ts}.png`);
+
+      setTimeout(() => {
+        btn.innerHTML = '⬇ Download PNG';
+        btn.disabled = false;
+        btn.style.background = '';
+      }, 1800);
+      btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
     }
 
-    // Return to camera.html which will detect existing photos and show rearrange view
-    function goBackToRearrange() {
-      window.location.href = 'camera.html';
-    }
-
-    function confirmBack() {
-      // sessionStorage still holds photos — camera.html will show rearrange view
-      return true;
-    }
-
+    function goBackToRearrange() { window.location.href = 'camera.html'; }
+    function confirmBack()       { return true; }
     function retakePhotos() {
       sessionStorage.removeItem('photobooth_photos');
       sessionStorage.removeItem('photobooth_photos_idb');
+      sessionStorage.removeItem('photobooth_stickers');
       window.location.href = 'camera.html';
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  STICKER SYSTEM — result page
+    // ═══════════════════════════════════════════════════════════════
+
+    const STICKER_CATS = {
+      hearts:  { label: '❤️', title: 'Hearts',     items: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','💕','💗','💖','💝'] },
+      stars:   { label: '⭐', title: 'Stars',       items: ['⭐','🌟','✨','💫','🌠','🌙','⚡','☀️','🌈','❄️','🔥','💥'] },
+      flowers: { label: '🌸', title: 'Sparkles',    items: ['🌸','🌺','🌻','🌼','🌷','🍀','🦋','🫧','🎀','🎆','🎇','🌿'] },
+      smiles:  { label: '😊', title: 'Smiles',      items: ['😊','😄','🥰','😍','😘','🤩','😎','😜','🤪','😂','🥹','🤗'] },
+      booth:   { label: '📸', title: 'Photobooth',  items: ['📸','🎞️','🎭','🎊','🎉','👑','💎','🎬','🎨','✦','🌟','🫶'] },
+    };
+
+    let stickerList      = [];
+    let selStickerId     = null;
+    let stickerIdCtr     = 0;
+    let activeCat        = 'hearts';
+
+    function buildStickerPanel() {
+      const catTabs = document.getElementById('stickerCatTabs');
+      const grid    = document.getElementById('stickerGrid');
+      if (!catTabs || !grid) return;
+      catTabs.innerHTML = '';
+      Object.entries(STICKER_CATS).forEach(([key, cat]) => {
+        const btn = document.createElement('button');
+        btn.className = `sticker-cat-btn${key === activeCat ? ' active' : ''}`;
+        btn.textContent = cat.label;
+        btn.title = cat.title;
+        btn.addEventListener('click', () => {
+          activeCat = key;
+          document.querySelectorAll('.sticker-cat-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderStickerGrid();
+        });
+        catTabs.appendChild(btn);
+      });
+      renderStickerGrid();
+    }
+
+    function renderStickerGrid() {
+      const grid = document.getElementById('stickerGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      STICKER_CATS[activeCat].items.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.className = 'sticker-item-btn';
+        btn.textContent = emoji;
+        btn.title = 'Add sticker';
+        btn.addEventListener('click', () => addSticker(emoji));
+        grid.appendChild(btn);
+      });
+    }
+
+    function positionStickerLayer() {
+      const canvas = document.getElementById('resultCanvas');
+      const layer  = document.getElementById('stickerLayer');
+      const frame  = document.getElementById('stripFrame');
+      if (!canvas || !layer || !frame) return;
+      if (!canvas.width) { layer.style.display = 'none'; return; }
+      const cr = canvas.getBoundingClientRect();
+      const fr = frame.getBoundingClientRect();
+      layer.style.display  = 'block';
+      layer.style.left     = (cr.left - fr.left) + 'px';
+      layer.style.top      = (cr.top  - fr.top)  + 'px';
+      layer.style.width    = cr.width  + 'px';
+      layer.style.height   = cr.height + 'px';
+      layer.style.zIndex   = '10';
+    }
+
+    function addSticker(emoji) {
+      positionStickerLayer();
+      const layer = document.getElementById('stickerLayer');
+      if (!layer) return;
+      const lw = parseFloat(layer.style.width)  || layer.offsetWidth  || 200;
+      const lh = parseFloat(layer.style.height) || layer.offsetHeight || 300;
+      if (lw === 0) return;
+      const id = ++stickerIdCtr;
+      const stk = {
+        id, emoji,
+        x:        lw/2 + (Math.random()-.5)*lw*.3,
+        y:        lh/2 + (Math.random()-.5)*lh*.3,
+        size:     Math.max(28, lw * 0.11),
+        rotation: (Math.random()-.5)*30,
+      };
+      stickerList.push(stk);
+      renderStickerEl(stk);
+      selectSticker(id);
+    }
+
+    function renderStickerEl(stk) {
+      const layer = document.getElementById('stickerLayer');
+      if (!layer) return;
+      document.getElementById(`sticker-${stk.id}`)?.remove();
+
+      const el = document.createElement('div');
+      el.className = 'sticker-el';
+      el.id        = `sticker-${stk.id}`;
+      el.style.cssText = `position:absolute;left:${stk.x}px;top:${stk.y}px;transform:translate(-50%,-50%);cursor:move;user-select:none;touch-action:none;`;
+
+      const body = document.createElement('div');
+      body.className = 'sticker-body';
+      body.style.cssText = `position:relative;display:inline-flex;align-items:center;justify-content:center;transform:rotate(${stk.rotation}deg);transform-origin:center;`;
+
+      const emojiEl = document.createElement('span');
+      emojiEl.className   = 'sticker-emoji';
+      emojiEl.textContent = stk.emoji;
+      emojiEl.style.cssText = `font-size:${stk.size}px;line-height:1;display:block;pointer-events:none;`;
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'sticker-del-btn';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Remove';
+
+      const resizeHandle = document.createElement('div');
+      resizeHandle.className = 'sticker-resize-handle';
+      resizeHandle.title = 'Resize';
+
+      const rotateHandle = document.createElement('div');
+      rotateHandle.className = 'sticker-rotate-handle';
+      rotateHandle.title = 'Rotate';
+      rotateHandle.textContent = '↻';
+
+      body.append(emojiEl, delBtn, resizeHandle, rotateHandle);
+      el.appendChild(body);
+      layer.appendChild(el);
+
+      // ── Drag ──
+      let dragging = false, dStartX, dStartY, sStartX, sStartY;
+      el.addEventListener('pointerdown', e => {
+        if (e.target.closest('.sticker-del-btn,.sticker-resize-handle,.sticker-rotate-handle')) return;
+        e.stopPropagation(); e.preventDefault();
+        selectSticker(stk.id);
+        dragging = true; dStartX = e.clientX; dStartY = e.clientY;
+        sStartX = stk.x; sStartY = stk.y;
+        el.setPointerCapture(e.pointerId);
+      });
+      el.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        stk.x = sStartX + (e.clientX - dStartX);
+        stk.y = sStartY + (e.clientY - dStartY);
+        el.style.left = stk.x + 'px'; el.style.top = stk.y + 'px';
+      });
+      el.addEventListener('pointerup', () => { dragging = false; });
+
+      // ── Delete ──
+      delBtn.addEventListener('click', e => { e.stopPropagation(); removeSticker(stk.id); });
+
+      // ── Resize ──
+      let resizing = false, rStartDist, rStartSize;
+      resizeHandle.addEventListener('pointerdown', e => {
+        e.stopPropagation(); e.preventDefault(); resizing = true;
+        const c = getStickerCenter(el);
+        rStartDist = Math.hypot(e.clientX - c.x, e.clientY - c.y) || 1;
+        rStartSize = stk.size;
+        resizeHandle.setPointerCapture(e.pointerId);
+      });
+      resizeHandle.addEventListener('pointermove', e => {
+        if (!resizing) return;
+        const c = getStickerCenter(el);
+        stk.size = Math.max(18, rStartSize * (Math.hypot(e.clientX - c.x, e.clientY - c.y) / rStartDist));
+        emojiEl.style.fontSize = stk.size + 'px';
+      });
+      resizeHandle.addEventListener('pointerup', () => { resizing = false; });
+
+      // ── Rotate ──
+      let rotating = false, rotBase;
+      rotateHandle.addEventListener('pointerdown', e => {
+        e.stopPropagation(); e.preventDefault(); rotating = true;
+        const c = getStickerCenter(el);
+        rotBase = Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180/Math.PI - stk.rotation;
+        rotateHandle.setPointerCapture(e.pointerId);
+      });
+      rotateHandle.addEventListener('pointermove', e => {
+        if (!rotating) return;
+        const c = getStickerCenter(el);
+        stk.rotation = Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180/Math.PI - rotBase;
+        body.style.transform = `rotate(${stk.rotation}deg)`;
+      });
+      rotateHandle.addEventListener('pointerup', () => { rotating = false; });
+    }
+
+    function getStickerCenter(el) {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width/2, y: r.top + r.height/2 };
+    }
+    function selectSticker(id) {
+      selStickerId = id;
+      document.querySelectorAll('.sticker-el').forEach(e => e.classList.remove('sticker-selected'));
+      document.getElementById(`sticker-${id}`)?.classList.add('sticker-selected');
+    }
+    function removeSticker(id) {
+      stickerList = stickerList.filter(s => s.id !== id);
+      document.getElementById(`sticker-${id}`)?.remove();
+      if (selStickerId === id) selStickerId = null;
+    }
+
+    // Bake stickers from the DOM layer onto a canvas context
+    function bakeStickersToCan(ctx, cw, ch) {
+      const layer = document.getElementById('stickerLayer');
+      if (!layer) return;
+      const lw = parseFloat(layer.style.width)  || 1;
+      const lh = parseFloat(layer.style.height) || 1;
+      stickerList.forEach(s => {
+        const cx   = (s.x / lw) * cw;
+        const cy   = (s.y / lh) * ch;
+        const size = (s.size / lw) * cw;
+        const rot  = (s.rotation || 0) * Math.PI / 180;
+        ctx.save();
+        ctx.globalAlpha  = 1;
+        ctx.fillStyle    = '#000000';
+        ctx.translate(cx, cy);
+        ctx.rotate(rot);
+        ctx.font         = `${size}px serif`;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.emoji, 0, 0);
+        ctx.restore();
+      });
+    }
+
+    // Deselect on clicking empty layer
+    document.addEventListener('DOMContentLoaded', () => {
+      const layer = document.getElementById('stickerLayer');
+      if (layer) {
+        layer.addEventListener('pointerdown', e => {
+          if (e.target === layer) {
+            selStickerId = null;
+            document.querySelectorAll('.sticker-el').forEach(el => el.classList.remove('sticker-selected'));
+          }
+        });
+      }
+      window.addEventListener('resize', positionStickerLayer);
+    });
   </script>
   <script>
     if ('serviceWorker' in navigator) {

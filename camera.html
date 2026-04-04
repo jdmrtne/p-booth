@@ -13,12 +13,18 @@
   <link rel="apple-touch-icon" href="icon-192.svg">
   <link rel="stylesheet" href="css/style.css">
   <style>
-    html, body { height: 100%; overflow: hidden; }
+    /* Desktop/landscape: locked viewport */
+    @media (min-width: 769px) {
+      html, body { height: 100%; overflow: hidden; }
+      main { overflow: hidden; }
+      .camera-layout { height: 100%; overflow: hidden; }
+      .camera-main { height: 100%; overflow: hidden; }
+    }
     .camera-viewfinder video { transform: scaleX(-1); }
     body { display: flex; flex-direction: column; }
-    main { flex: 1; overflow: hidden; min-height: 0; }
-    .camera-layout { height: 100%; overflow: hidden; }
-    .camera-main { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+    main { flex: 1; min-height: 0; }
+    .camera-layout { overflow: hidden; }
+    .camera-main { display: flex; flex-direction: column; min-height: 0; }
     .camera-viewfinder { flex: 1; min-height: 0; aspect-ratio: unset !important; }
     canvas#snapshot { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none; }
 
@@ -50,8 +56,11 @@
     .upload-slot[draggable="true"]:active { cursor: grabbing; }
     .upload-slot.dragging { opacity: .4; transform: scale(.96); border-style: dashed; border-color: var(--pink); }
     .upload-slot.drag-over { border-color: var(--pink); background: rgba(255,107,157,.12); transform: scale(1.04); box-shadow: 0 0 0 3px rgba(255,107,157,.25); }
-    .drag-handle { position: absolute; top: 5px; left: 5px; z-index: 10; width: 18px; height: 18px; border-radius: 4px; background: rgba(0,0,0,.38); color: #fff; display: none; align-items: center; justify-content: center; font-size: 10px; cursor: grab; pointer-events: none; }
+    .drag-handle { position: absolute; top: 4px; left: 4px; z-index: 10; width: 22px; height: 22px; border-radius: 5px; background: rgba(0,0,0,.45); color: #fff; display: none; align-items: center; justify-content: center; font-size: 11px; cursor: grab; touch-action: none; user-select: none; }
     .upload-slot.filled .drag-handle { display: flex; }
+    @media (pointer: coarse) {
+      .drag-handle { width: 32px; height: 32px; font-size: 16px; background: rgba(255,107,157,.85); border-radius: 6px; top: 3px; left: 3px; }
+    }
     .upload-slot-reorder-hint { font-size: .63rem; color: var(--text-muted); font-weight: 600; text-align: center; padding: 4px 0 0; display: none; }
     .upload-slot-reorder-hint.visible { display: block; }
 
@@ -59,8 +68,81 @@
     .camera-right-panel { overflow: hidden; }
     .camera-left-panel .sidebar-panel, .camera-right-panel .sidebar-panel { padding: 12px; }
     .camera-left-panel .sidebar-panel h3, .camera-right-panel .sidebar-panel h3 { margin-bottom: 8px; }
-    /* Hide mobile customize btn on desktop (panels are visible) */
+    /* mobile-only-btn: hidden on desktop (left/right panels visible), shown on mobile */
+    .mobile-only-btn { display: none; }
+    @media (max-width: 768px) { .mobile-only-btn { display: inline-flex !important; } }
+    @media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) { .mobile-only-btn { display: inline-flex !important; } }
+    /* Legacy alias */
     .mobile-customize-btn { display: none; }
+    @media (max-width: 768px) { .mobile-customize-btn { display: inline-flex !important; } }
+    @media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) { .mobile-customize-btn { display: inline-flex !important; } }
+
+    /* ─── PAUSE BUTTON ─── */
+    .btn-pause {
+      background: rgba(255,107,157,.1);
+      color: var(--pink);
+      border: 2px solid var(--pink-border);
+      flex-shrink: 0;
+    }
+    .btn-pause:hover { background: rgba(255,107,157,.2); }
+    .btn-pause.is-paused {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white; border-color: transparent;
+      box-shadow: 0 4px 18px rgba(249,115,22,.45);
+      animation: pausePulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pausePulse {
+      0%,100% { box-shadow: 0 4px 18px rgba(249,115,22,.4); }
+      50%     { box-shadow: 0 6px 30px rgba(249,115,22,.7); }
+    }
+
+    /* ─── PAUSED OVERLAY (over viewfinder) ─── */
+    #pausedOverlay {
+      position: absolute; inset: 0; z-index: 14;
+      background: rgba(10,0,20,.85);
+      backdrop-filter: blur(5px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px; text-align: center; padding: 20px;
+    }
+    #pausedOverlay.visible { display: flex; }
+    .paused-icon  { font-size: 3.2rem; animation: float 3s ease-in-out infinite; }
+    .paused-title { font-size: 1.25rem; font-weight: 900; color: white; }
+    .paused-sub   { font-size: 0.75rem; font-weight: 600; color: rgba(255,255,255,.55); max-width: 240px; line-height: 1.6; }
+    .paused-resume-btn {
+      margin-top: 6px; padding: 12px 30px; border-radius: 50px;
+      background: linear-gradient(135deg, var(--pink), #e0378a);
+      color: white; border: none; font-weight: 800; font-size: 0.84rem;
+      cursor: pointer; box-shadow: 0 4px 18px rgba(255,107,157,.4);
+      font-family: var(--font-ui); transition: all .2s;
+    }
+    .paused-resume-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(255,107,157,.6); }
+    .paused-resume-btn:active { transform: scale(0.97); }
+
+    /* ─── FIX: Mobile rearrange actions — always fully in-viewport ─── */
+    /* On small screens the rearrange-actions strip was cut off at the bottom
+       because the parent flex column had no bottom padding. We add enough
+       padding so the buttons clear the browser's nav bar and home indicator. */
+    @media (max-width: 768px) {
+      #rearrangeView .rearrange-container { padding-bottom: max(80px, env(safe-area-inset-bottom, 80px)); }
+      #uploadModeView .upload-mode-container { padding-bottom: max(80px, env(safe-area-inset-bottom, 80px)); }
+      /* Ensure the continue / build-strip buttons are never hidden under the keyboard */
+      #uploadContinueBtn, #buildStripBtn {
+        position: sticky;
+        bottom: max(12px, env(safe-area-inset-bottom, 12px));
+        z-index: 5;
+      }
+      /* Slightly bigger tap targets for rearrange action buttons */
+      .rearrange-actions .btn { min-height: 48px; }
+      /* Prevent horizontal overflow caused by long button labels */
+      .rearrange-actions { flex-wrap: wrap; gap: 8px; }
+      /* Mode-toggle and icon buttons: adequate tap size */
+      .mode-toggle-wrap .btn { min-width: 44px; min-height: 44px; }
+      /* Mobile customize / preview icon buttons */
+      #mobileCustomizeBtn, #mobilePreviewBtn { min-width: 44px; min-height: 44px; padding: 8px 12px !important; }
+    }}
 
     /* ─── PAUSE BUTTON ─── */
     .btn-pause {
@@ -162,7 +244,7 @@
     }
   </style>
 </head>
-<body>
+<body class="camera-page">
 
   <!-- ─── LANDSCAPE ORIENTATION OVERLAY ─── -->
   <div id="landscapeOverlay">
@@ -170,9 +252,12 @@
       <div class="ls-phone">📷</div>
       <div class="ls-arrow">↻</div>
     </div>
-    <div class="ls-title">Rotate Your Device</div>
+    <div class="ls-title">Landscape Recommended</div>
     <p class="ls-sub">Landscape mode gives you a wider, better-framed photo for your strip</p>
-    <div class="ls-badge">✦ Rotate to landscape to continue</div>
+    <div class="ls-badge">✦ Rotate for the best experience</div>
+    <div class="landscape-gate-actions" style="margin-top:16px;">
+      <button class="landscape-gate-dismiss" onclick="dismissCameraLandscapeOverlay()">Continue in Portrait →</button>
+    </div>
   </div>
 
   <nav class="top-bar">
@@ -189,11 +274,13 @@
     </div>
   </nav>
 
-  <div class="mode-toggle-wrap" id="modeToggleWrap">
-    <div class="mode-toggle" id="modeToggle">
+  <div class="mode-toggle-wrap" id="modeToggleWrap" style="display:flex;align-items:center;gap:6px;">
+    <div class="mode-toggle" id="modeToggle" style="flex:1;">
       <button class="mode-btn active" id="modeCameraBtn" onclick="switchMode('camera')">📷 Camera</button>
       <button class="mode-btn" id="modeUploadBtn" onclick="switchMode('upload')">🖼️ Upload Photos</button>
     </div>
+    <button class="btn btn-secondary mobile-only-btn mobile-customize-btn" id="mobileCustomizeBtn" onclick="openMobileCustomize()" title="Customize strip" style="flex-shrink:0;padding:6px 10px;font-size:1rem;">🎨</button>
+    <button class="btn btn-secondary mobile-only-btn mobile-preview-btn" id="mobilePreviewBtn" onclick="openMobilePreview()" title="Strip preview" style="flex-shrink:0;padding:6px 10px;font-size:1rem;">🖼</button>
   </div>
 
   <main>
@@ -314,7 +401,6 @@
           <div class="camera-controls">
             <button class="btn btn-primary btn-lg" id="startBtn" style="flex:1;">▶ Start Session</button>
             <button class="btn btn-pause btn-lg" id="pauseBtn" onclick="togglePause()" style="display:none;">⏸ Pause</button>
-            <button class="btn btn-secondary btn-lg mobile-customize-btn" id="mobileCustomizeBtn" onclick="openMobileCustomize()" data-tooltip="Customize strip">🎨</button>
             <a href="index.html" class="btn btn-secondary btn-lg" style="padding:14px 18px;flex-shrink:0;" data-tooltip="Change layout">⊞</a>
           </div>
         </div>
@@ -330,7 +416,7 @@
               </div>
             </div>
             <div class="upload-slots-grid" id="uploadSlotsGrid"></div>
-            <p class="upload-slot-reorder-hint" id="reorderHint">⟺ Drag photos to rearrange order</p>
+            <p class="upload-slot-reorder-hint" id="reorderHint">⟺ Drag to rearrange · Long-press or use the ⠿ handle on mobile</p>
             <div class="upload-bulk-wrap">
               <button class="btn btn-secondary upload-bulk-btn" onclick="triggerBulkUpload()">📁 Select All Photos at Once</button>
               <input type="file" id="bulkFileInput" accept="image/*" multiple style="display:none;" onchange="handleBulkUpload(event)">
@@ -356,16 +442,6 @@
             <div class="rearrange-grid" id="rearrangeGrid"></div>
             <p class="rearrange-drag-hint">⟺ Drag to reorder · Long-press on mobile</p>
 
-            <!-- ── STICKER PANEL ── -->
-            <div id="stickerPanel" style="display:none;">
-              <div class="sticker-panel-header">
-                <span class="sticker-panel-title">🎨 Add Stickers</span>
-                <span class="sticker-panel-hint">Tap to add · Drag to move · Resize & rotate with handles</span>
-              </div>
-              <div class="sticker-cat-tabs" id="stickerCatTabs"></div>
-              <div class="sticker-grid" id="stickerGrid"></div>
-            </div>
-
             <div class="rearrange-actions">
               <button class="btn btn-secondary" onclick="retakeFromRearrange()">↺ Retake All</button>
               <button class="btn btn-primary btn-lg" id="buildStripBtn" onclick="buildStrip()">✦ Build Strip →</button>
@@ -375,20 +451,27 @@
 
       </div>
 
-      <!-- RIGHT PANEL -->
+      <!-- RIGHT PANEL — visible on desktop only; hidden canvas kept for JS -->
       <div class="camera-right-panel">
         <div class="sidebar-panel" id="panelPreview" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
           <h3>Strip Preview <span id="previewShotCount" style="font-size:.6rem;font-weight:600;color:var(--text-light);"></span></h3>
           <div class="live-preview-wrap" id="livePreviewWrap" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
             <canvas id="liveStripCanvas" style="max-width:100%;max-height:100%;width:auto;height:auto;display:none;"></canvas>
             <div class="live-preview-placeholder" id="livePreviewPlaceholder"><span>📸</span><p>Preview appears here</p></div>
-            <!-- Sticker layer floats above the preview canvas -->
-            <div id="stickerLayer" style="position:absolute;overflow:hidden;pointer-events:auto;display:none;"></div>
           </div>
         </div>
       </div>
 
     </div>
+
+  <!-- ── MOBILE STRIP PREVIEW MODAL ── -->
+  <div id="mobilePreviewModal" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(10,0,24,.88);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:16px;" onclick="closeMobilePreview(event)">
+    <div style="position:relative;max-width:90vw;max-height:80vh;display:flex;align-items:center;justify-content:center;">
+      <canvas id="mobilePreviewCanvas" style="max-width:90vw;max-height:72vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.5);"></canvas>
+      <div id="mobilePreviewPlaceholder" style="color:rgba(255,255,255,.5);font-size:.9rem;font-weight:700;text-align:center;padding:40px;">📸<br><br>No photos yet</div>
+    </div>
+    <button onclick="closeMobilePreview()" style="padding:10px 28px;border-radius:50px;background:rgba(255,107,157,.9);color:#fff;border:none;font-weight:800;font-size:.85rem;cursor:pointer;font-family:inherit;">✕ Close</button>
+  </div>
   </main>
 
   <!-- ═══════════════════════════════════════════════════════════
@@ -537,6 +620,25 @@
   <script src="js/canvas.js"></script>
   <script src="js/camera.js"></script>
   <script>
+    // ── Landscape overlay: dismissable (intercept classList.add after camera.js loads) ──
+    (function() {
+      let _dismissed = false;
+      const overlay = document.getElementById('landscapeOverlay');
+      if (!overlay) return;
+
+      // Intercept classList.add so camera.js can't re-show after dismiss
+      const _origAdd = overlay.classList.add.bind(overlay.classList);
+      overlay.classList.add = function(cls) {
+        if (cls === 'visible' && _dismissed) return;
+        _origAdd(cls);
+      };
+
+      window.dismissCameraLandscapeOverlay = function() {
+        _dismissed = true;
+        overlay.classList.remove('visible');
+      };
+    })();
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(() => {});

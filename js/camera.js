@@ -13,12 +13,6 @@ let layoutConfig    = null;
 let currentMode     = 'camera';
 let uploadedPhotos  = [];
 
-// ── STICKER STATE ─────────────────────────────────────────────────
-let stickers          = [];
-let selectedStickerId = null;
-let stickerIdCounter  = 0;
-let activeStickerCat  = 'hearts';
-
 // ── FULLSCREEN CAPTURE MODE ───────────────────────────────────────
 let fscCaptureMode    = 'auto';   // 'auto' | 'manual'
 let fscAborted        = false;
@@ -102,7 +96,8 @@ function checkAndShowLandscapePrompt() {
   // Never show landscape overlay when the fullscreen camera overlay is active —
   // it has a lower z-index and would silently block all taps including the shutter.
   const fscOpen = document.getElementById('fullscreenCameraOverlay')?.classList.contains('fsc-open');
-  const shouldShow = !fscOpen && currentMode === 'camera' && isMobileDevice() && isPortraitMode();
+  // Show on ALL modes when in portrait — not just camera mode
+  const shouldShow = !fscOpen && isMobileDevice() && isPortraitMode();
   overlay.classList.toggle('visible', shouldShow);
 }
 
@@ -245,6 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await initCamera();
+  checkAndShowLandscapePrompt();
   updateLivePreview();
 });
 
@@ -317,9 +313,8 @@ function switchMode(mode) {
     camBtn.classList.remove('active');
     upBtn.classList.add('active');
     if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-    // Hide landscape prompt when switching to upload mode
-    const overlay = document.getElementById('landscapeOverlay');
-    if (overlay) overlay.classList.remove('visible');
+    // Re-check landscape prompt (still required in upload mode too)
+    checkAndShowLandscapePrompt();
     updateLivePreview();
   }
 }
@@ -401,18 +396,22 @@ function buildUploadSlots() {
     slot.dataset.index = i;
     slot.draggable     = true;
     slot.innerHTML = `
-      <div class="drag-handle">⠿</div>
+      <div class="drag-handle" style="pointer-events:auto;cursor:grab;touch-action:none;">⠿</div>
+      <div class="touch-handle" style="display:none;">⠿</div>
       <div class="upload-slot-placeholder" id="upload-placeholder-${i}">
         <span class="upload-slot-icon">+</span>
         <span class="upload-slot-num">Photo ${i+1}</span>
       </div>
       <img class="upload-slot-img" id="upload-img-${i}" src="" alt="Photo ${i+1}" style="display:none;">
       <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)">✕</button>
-      <input type="file" accept="image/*" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
+      <input type="file" accept="image/*" capture="environment" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
     `;
+    // Click → file picker (works on both desktop and mobile)
     slot.addEventListener('click', e => {
       if (!e.target.closest('.upload-slot-remove') && !isDragging) triggerSingleUpload(i);
     });
+
+    // ── Desktop drag-and-drop reorder ──
     slot.addEventListener('dragstart', e => {
       if (uploadedPhotos[i] === null) { e.preventDefault(); return; }
       dragSrcIndex = i; isDragging = true;
@@ -436,6 +435,138 @@ function buildUploadSlots() {
       if (dragSrcIndex !== null && dragSrcIndex !== toIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
       dragSrcIndex = null;
     });
+
+    // ── Touch drag reorder via drag handle (mobile) ──
+    // Non-passive touchstart on the handle calls preventDefault() BEFORE
+    // the browser locks in scroll mode, so touchmove stays cancelable.
+    const dragHandleEl = slot.querySelector('.drag-handle');
+    if (dragHandleEl) {
+      let hdlDragging = false;
+
+      dragHandleEl.addEventListener('touchstart', e => {
+        if (uploadedPhotos[i] === null) return;
+        e.preventDefault();   // blocks scroll lock — MUST be non-passive
+        e.stopPropagation();
+        hdlDragging  = true;
+        isDragging   = true;
+        dragSrcIndex = i;
+        slot.classList.add('dragging');
+        if (navigator.vibrate) navigator.vibrate(25);
+      }, { passive: false });
+
+      dragHandleEl.addEventListener('touchmove', e => {
+        if (!hdlDragging) return;
+        e.preventDefault();   // keeps page from scrolling while dragging
+        const touch = e.touches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = el?.closest('.upload-slot');
+        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+        if (targetSlot && parseInt(targetSlot.dataset.index) !== dragSrcIndex) {
+          targetSlot.classList.add('drag-over');
+        }
+      }, { passive: false });
+
+      dragHandleEl.addEventListener('touchend', e => {
+        if (!hdlDragging) return;
+        const touch = e.changedTouches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = el?.closest('.upload-slot');
+        if (targetSlot) {
+          const toIndex = parseInt(targetSlot.dataset.index);
+          if (toIndex !== dragSrcIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
+        }
+        slot.classList.remove('dragging');
+        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+        hdlDragging = false;
+        setTimeout(() => { isDragging = false; dragSrcIndex = null; }, 80);
+      }, { passive: true });
+
+      dragHandleEl.addEventListener('touchcancel', () => {
+        slot.classList.remove('dragging');
+        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+        hdlDragging = false; isDragging = false; dragSrcIndex = null;
+      }, { passive: true });
+    }
+
+    // ── FIX: Slot-level touch drag fallback (mobile) ──
+    // On iOS, -webkit-overflow-scrolling:touch on the parent container can swallow
+    // touch events before the handle's preventDefault() fires, making handle-based
+    // drag unreliable.  We attach a secondary long-press-to-drag on the slot itself
+    // so users can initiate a drag from anywhere on a filled slot (not just the handle).
+    // A 180ms hold distinguishes drag-intent from a tap (file-picker).
+    {
+      let slotLongPressTimer = null;
+      let slotTouchActive    = false;
+      let slotTchX = 0, slotTchY = 0;
+      let slotHdlDragging    = false;
+
+      slot.addEventListener('touchstart', e => {
+        // Only activate on filled slots; ignore touches on the remove button or handle
+        if (uploadedPhotos[i] === null) return;
+        if (e.target.closest('.upload-slot-remove,.drag-handle')) return;
+        slotTchX = e.touches[0].clientX;
+        slotTchY = e.touches[0].clientY;
+        slotTouchActive = true;
+        slotHdlDragging = false;
+
+        slotLongPressTimer = setTimeout(() => {
+          if (!slotTouchActive) return;
+          // Commit to drag after hold threshold
+          slotHdlDragging = true;
+          isDragging      = true;
+          dragSrcIndex    = i;
+          slot.classList.add('dragging');
+          if (navigator.vibrate) navigator.vibrate(30);
+        }, 180);
+      }, { passive: true });
+
+      slot.addEventListener('touchmove', e => {
+        if (!slotTouchActive) return;
+        const dx = Math.abs(e.touches[0].clientX - slotTchX);
+        const dy = Math.abs(e.touches[0].clientY - slotTchY);
+        // If moved >8px before the timer fires, cancel long-press (user is scrolling)
+        if (!slotHdlDragging && (dx > 8 || dy > 8)) {
+          clearTimeout(slotLongPressTimer);
+          slotTouchActive = false;
+          return;
+        }
+        if (!slotHdlDragging) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = target?.closest('.upload-slot');
+        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+        if (targetSlot && parseInt(targetSlot.dataset.index) !== dragSrcIndex) {
+          targetSlot.classList.add('drag-over');
+        }
+      }, { passive: false });
+
+      slot.addEventListener('touchend', e => {
+        clearTimeout(slotLongPressTimer);
+        slotTouchActive = false;
+        if (!slotHdlDragging) return;
+        const touch = e.changedTouches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = target?.closest('.upload-slot');
+        if (targetSlot) {
+          const toIndex = parseInt(targetSlot.dataset.index);
+          if (toIndex !== dragSrcIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
+        }
+        slot.classList.remove('dragging');
+        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+        slotHdlDragging = false;
+        setTimeout(() => { isDragging = false; dragSrcIndex = null; }, 80);
+      }, { passive: true });
+
+      slot.addEventListener('touchcancel', () => {
+        clearTimeout(slotLongPressTimer);
+        slotTouchActive = false;
+        slot.classList.remove('dragging');
+        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+        slotHdlDragging = false; isDragging = false; dragSrcIndex = null;
+      }, { passive: true });
+    }
+
     grid.appendChild(slot);
   }
 }
@@ -689,6 +820,11 @@ function updateThumbnail(i, dataUrl) {
 
 // ─── REARRANGE VIEW ───────────────────────────────────────────────
 function showRearrangeView(fromStorage) {
+  // FIX: Always switch to 'camera' mode so updateLivePreview() reads capturedPhotos
+  // (which is always populated before showRearrangeView is called — either from
+  // capture session, from sessionStorage on return, or now from continueFromUpload).
+  currentMode = 'camera';
+
   const modeWrap   = document.getElementById('modeToggleWrap');
   const cameraView = document.getElementById('cameraModeView');
   const uploadView  = document.getElementById('uploadModeView');
@@ -707,7 +843,6 @@ function showRearrangeView(fromStorage) {
     : 'Drag your photos to change their order in the strip';
 
   buildRearrangeGrid();
-  buildStickerPanel();
   updateLivePreview();
 }
 
@@ -809,8 +944,66 @@ function buildRearrangeGrid() {
       if (tDragging && targetIdx !== null && targetIdx !== tSrcIdx) swapCapturedPhotos(tSrcIdx, targetIdx);
       tSrcIdx = null; tDragging = false;
     });
+
+    // ── Touch drag via handle (mobile) — prevents scroll from starting ──
+    const rearrangeHandleEl = slot.querySelector('.rearrange-drag-handle');
+    if (rearrangeHandleEl) {
+      let hdlDragging = false;
+
+      rearrangeHandleEl.addEventListener('touchstart', e => {
+        if (!photo) return;
+        e.preventDefault();   // blocks scroll — MUST be non-passive
+        e.stopPropagation();
+        hdlDragging  = true;
+        tSrcIdx      = i;
+        tDragging    = false;
+        tStartX      = e.touches[0].clientX;
+        tStartY      = e.touches[0].clientY;
+        slot.classList.add('rearrange-dragging');
+        if (navigator.vibrate) navigator.vibrate(25);
+      }, { passive: false });
+
+      rearrangeHandleEl.addEventListener('touchmove', e => {
+        if (!hdlDragging) return;
+        e.preventDefault();
+        tDragging = true;
+        const touch = e.touches[0];
+        grid.querySelectorAll('.rearrange-slot').forEach(s => {
+          const r = s.getBoundingClientRect();
+          const over = touch.clientX >= r.left && touch.clientX <= r.right
+                    && touch.clientY >= r.top  && touch.clientY <= r.bottom
+                    && parseInt(s.dataset.index) !== tSrcIdx;
+          s.classList.toggle('rearrange-drag-over', over);
+        });
+      }, { passive: false });
+
+      rearrangeHandleEl.addEventListener('touchend', e => {
+        if (!hdlDragging) return;
+        slot.classList.remove('rearrange-dragging');
+        const touch = e.changedTouches[0];
+        let targetIdx = null;
+        grid.querySelectorAll('.rearrange-slot').forEach(s => {
+          s.classList.remove('rearrange-drag-over');
+          const r = s.getBoundingClientRect();
+          if (touch.clientX >= r.left && touch.clientX <= r.right
+           && touch.clientY >= r.top  && touch.clientY <= r.bottom) targetIdx = parseInt(s.dataset.index);
+        });
+        if (targetIdx !== null && targetIdx !== tSrcIdx) swapCapturedPhotos(tSrcIdx, targetIdx);
+        hdlDragging = false; tSrcIdx = null; tDragging = false;
+      }, { passive: true });
+
+      rearrangeHandleEl.addEventListener('touchcancel', () => {
+        slot.classList.remove('rearrange-dragging');
+        grid.querySelectorAll('.rearrange-slot').forEach(s => s.classList.remove('rearrange-drag-over'));
+        hdlDragging = false; tSrcIdx = null; tDragging = false;
+      }, { passive: true });
+    }
   });
 }
+
+// FIX: Track whether the rearrange view was entered from the upload flow.
+// retakeFromRearrange() uses this to return the user to the right view.
+let _rearrangeFromUpload = false;
 
 function swapCapturedPhotos(a, b) {
   const tmp = capturedPhotos[a]; capturedPhotos[a] = capturedPhotos[b]; capturedPhotos[b] = tmp;
@@ -828,9 +1021,6 @@ async function buildStrip() {
   const btn = document.getElementById('buildStripBtn');
   if (btn) { btn.textContent = 'Preparing…'; btn.disabled = true; }
 
-  // Save sticker export data for result.html to apply
-  sessionStorage.setItem('photobooth_stickers', JSON.stringify(getStickerExportData()));
-
   const compressed = await Promise.all(capturedPhotos.map(p => p ? compressImage(p, 900, 0.78) : Promise.resolve(null)));
   safeSetPhotos(compressed);
   await sleep(100);
@@ -843,20 +1033,28 @@ function retakeFromRearrange() {
   sessionStorage.removeItem('photobooth_photos_idb');
   sessionStorage.removeItem('photobooth_stickers');
 
-  // Clear stickers
-  stickers = [];
-  selectedStickerId = null;
-  const layer = document.getElementById('stickerLayer');
-  if (layer) { layer.innerHTML = ''; layer.style.display = 'none'; }
-  const stickerPanel = document.getElementById('stickerPanel');
-  if (stickerPanel) stickerPanel.style.display = 'none';
-
   const rearrangeV = document.getElementById('rearrangeView');
   const modeWrap   = document.getElementById('modeToggleWrap');
   const cameraView = document.getElementById('cameraModeView');
   const uploadView  = document.getElementById('uploadModeView');
   if (rearrangeV) rearrangeV.style.display = 'none';
   if (modeWrap)   modeWrap.style.display   = '';
+
+  // FIX: Return to upload mode if that's where the user came from
+  if (_rearrangeFromUpload) {
+    _rearrangeFromUpload = false;
+    if (cameraView) cameraView.style.display = 'none';
+    if (uploadView)  uploadView.style.display  = '';
+    currentMode = 'upload';
+    document.getElementById('modeCameraBtn')?.classList.remove('active');
+    document.getElementById('modeUploadBtn')?.classList.add('active');
+    // Reset uploadedPhotos so all slots are empty again
+    uploadedPhotos = new Array(layoutConfig.shots).fill(null);
+    buildUploadSlots();
+    updateLivePreview();
+    return;
+  }
+
   if (cameraView) cameraView.style.display = '';
   if (uploadView)  uploadView.style.display  = 'none';
 
@@ -906,8 +1104,6 @@ async function updateLivePreview() {
       canvas.getContext('2d').drawImage(strip, 0, 0);
       canvas.style.display = '';
       if (placeholder) placeholder.style.display = 'none';
-      // Position sticker layer over the canvas
-      requestAnimationFrame(updateStickerLayerPosition);
     } catch(e) { console.warn('Preview error:', e); }
   }, 150);
 }
@@ -1387,252 +1583,7 @@ function fscUpdateProgressIndicator(current, total) {
   el.textContent = `Shot ${current} / ${total}`;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  STICKER SYSTEM
-// ═══════════════════════════════════════════════════════════════════
-
-const STICKER_CATS = {
-  hearts:  { label: '❤️', title: 'Hearts',     items: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','💕','💗','💖','💝'] },
-  stars:   { label: '⭐', title: 'Stars',       items: ['⭐','🌟','✨','💫','🌠','🌙','⚡','☀️','🌈','❄️','🔥','💥'] },
-  flowers: { label: '🌸', title: 'Sparkles',    items: ['🌸','🌺','🌻','🌼','🌷','🍀','🦋','🫧','🎀','🎆','🎇','🌿'] },
-  smiles:  { label: '😊', title: 'Smiles',      items: ['😊','😄','🥰','😍','😘','🤩','😎','😜','🤪','😂','🥹','🤗'] },
-  booth:   { label: '📸', title: 'Photobooth',  items: ['📸','🎞️','🎭','🎊','🎉','👑','💎','🎬','🎨','✦','🌟','🫶'] },
-};
-
-function buildStickerPanel() {
-  const panel    = document.getElementById('stickerPanel');
-  const catTabs  = document.getElementById('stickerCatTabs');
-  const grid     = document.getElementById('stickerGrid');
-  if (!panel || !catTabs || !grid) return;
-
-  panel.style.display = '';
-
-  // Category tabs
-  catTabs.innerHTML = '';
-  Object.entries(STICKER_CATS).forEach(([key, cat]) => {
-    const btn = document.createElement('button');
-    btn.className = `sticker-cat-btn${key === activeStickerCat ? ' active' : ''}`;
-    btn.textContent = cat.label;
-    btn.title = cat.title;
-    btn.addEventListener('click', () => {
-      activeStickerCat = key;
-      document.querySelectorAll('.sticker-cat-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderStickerGrid();
-    });
-    catTabs.appendChild(btn);
-  });
-
-  renderStickerGrid();
-}
-
-function renderStickerGrid() {
-  const grid = document.getElementById('stickerGrid');
-  if (!grid) return;
-  const cat = STICKER_CATS[activeStickerCat];
-  grid.innerHTML = '';
-  cat.items.forEach(emoji => {
-    const btn = document.createElement('button');
-    btn.className = 'sticker-item-btn';
-    btn.textContent = emoji;
-    btn.title = 'Add sticker';
-    btn.addEventListener('click', () => addSticker(emoji));
-    grid.appendChild(btn);
-  });
-}
-
-function addSticker(emoji) {
-  // Ensure layer is positioned before adding
-  updateStickerLayerPosition();
-
-  const layer = document.getElementById('stickerLayer');
-  if (!layer) return;
-  const lw = parseFloat(layer.style.width)  || layer.offsetWidth  || 200;
-  const lh = parseFloat(layer.style.height) || layer.offsetHeight || 300;
-  if (lw === 0) return;
-
-  const id = ++stickerIdCounter;
-  const stk = {
-    id,
-    emoji,
-    x:        lw / 2 + (Math.random() - 0.5) * lw * 0.3,
-    y:        lh / 2 + (Math.random() - 0.5) * lh * 0.3,
-    size:     Math.max(36, lw * 0.13),
-    rotation: (Math.random() - 0.5) * 30,
-  };
-  stickers.push(stk);
-  renderStickerEl(stk);
-  selectSticker(id);
-}
-
-function renderStickerEl(stk) {
-  const layer = document.getElementById('stickerLayer');
-  if (!layer) return;
-  document.getElementById(`sticker-${stk.id}`)?.remove();
-
-  const el = document.createElement('div');
-  el.className = 'sticker-el';
-  el.id        = `sticker-${stk.id}`;
-  el.style.cssText = `position:absolute;left:${stk.x}px;top:${stk.y}px;transform:translate(-50%,-50%);cursor:move;user-select:none;touch-action:none;`;
-
-  const body = document.createElement('div');
-  body.className = 'sticker-body';
-  body.style.cssText = `position:relative;display:inline-flex;align-items:center;justify-content:center;transform:rotate(${stk.rotation}deg);transform-origin:center;`;
-
-  const emojiEl = document.createElement('span');
-  emojiEl.className   = 'sticker-emoji';
-  emojiEl.textContent = stk.emoji;
-  emojiEl.style.cssText = `font-size:${stk.size}px;line-height:1;display:block;pointer-events:none;`;
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'sticker-del-btn';
-  delBtn.textContent = '✕';
-  delBtn.title = 'Remove';
-
-  const resizeHandle = document.createElement('div');
-  resizeHandle.className = 'sticker-resize-handle';
-  resizeHandle.title = 'Resize';
-
-  const rotateHandle = document.createElement('div');
-  rotateHandle.className = 'sticker-rotate-handle';
-  rotateHandle.title = 'Rotate';
-  rotateHandle.textContent = '↻';
-
-  body.append(emojiEl, delBtn, resizeHandle, rotateHandle);
-  el.appendChild(body);
-  layer.appendChild(el);
-
-  // ── Drag ──────────────────────────────────────────────────────
-  let dragging = false, dStartX, dStartY, sStartX, sStartY;
-
-  el.addEventListener('pointerdown', e => {
-    if (e.target.closest('.sticker-del-btn,.sticker-resize-handle,.sticker-rotate-handle')) return;
-    e.stopPropagation(); e.preventDefault();
-    selectSticker(stk.id);
-    dragging = true; dStartX = e.clientX; dStartY = e.clientY;
-    sStartX = stk.x; sStartY = stk.y;
-    el.setPointerCapture(e.pointerId);
-  });
-  el.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    stk.x = sStartX + (e.clientX - dStartX);
-    stk.y = sStartY + (e.clientY - dStartY);
-    el.style.left = stk.x + 'px';
-    el.style.top  = stk.y + 'px';
-  });
-  el.addEventListener('pointerup', () => { dragging = false; });
-
-  // ── Delete ────────────────────────────────────────────────────
-  delBtn.addEventListener('click', e => { e.stopPropagation(); removeSticker(stk.id); });
-
-  // ── Resize ────────────────────────────────────────────────────
-  let resizing = false, rStartDist, rStartSize;
-  resizeHandle.addEventListener('pointerdown', e => {
-    e.stopPropagation(); e.preventDefault(); resizing = true;
-    const c = getStickerCenter(el);
-    rStartDist = Math.hypot(e.clientX - c.x, e.clientY - c.y) || 1;
-    rStartSize = stk.size;
-    resizeHandle.setPointerCapture(e.pointerId);
-  });
-  resizeHandle.addEventListener('pointermove', e => {
-    if (!resizing) return;
-    const c    = getStickerCenter(el);
-    const dist = Math.hypot(e.clientX - c.x, e.clientY - c.y);
-    stk.size   = Math.max(18, rStartSize * (dist / rStartDist));
-    emojiEl.style.fontSize = stk.size + 'px';
-  });
-  resizeHandle.addEventListener('pointerup', () => { resizing = false; });
-
-  // ── Rotate ────────────────────────────────────────────────────
-  let rotating = false, rotBase;
-  rotateHandle.addEventListener('pointerdown', e => {
-    e.stopPropagation(); e.preventDefault(); rotating = true;
-    const c = getStickerCenter(el);
-    rotBase = Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180/Math.PI - stk.rotation;
-    rotateHandle.setPointerCapture(e.pointerId);
-  });
-  rotateHandle.addEventListener('pointermove', e => {
-    if (!rotating) return;
-    const c = getStickerCenter(el);
-    stk.rotation = Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180/Math.PI - rotBase;
-    body.style.transform = `rotate(${stk.rotation}deg)`;
-  });
-  rotateHandle.addEventListener('pointerup', () => { rotating = false; });
-}
-
-function getStickerCenter(el) {
-  const r = el.getBoundingClientRect();
-  return { x: r.left + r.width/2, y: r.top + r.height/2 };
-}
-
-function selectSticker(id) {
-  selectedStickerId = id;
-  document.querySelectorAll('.sticker-el').forEach(e => e.classList.remove('sticker-selected'));
-  document.getElementById(`sticker-${id}`)?.classList.add('sticker-selected');
-}
-
-function removeSticker(id) {
-  stickers = stickers.filter(s => s.id !== id);
-  document.getElementById(`sticker-${id}`)?.remove();
-  if (selectedStickerId === id) selectedStickerId = null;
-}
-
-function updateStickerLayerPosition() {
-  const canvas = document.getElementById('liveStripCanvas');
-  const layer  = document.getElementById('stickerLayer');
-  const wrap   = document.getElementById('livePreviewWrap');
-  if (!canvas || !layer || !wrap) return;
-
-  if (canvas.style.display === 'none' || !canvas.width) {
-    layer.style.display = 'none'; return;
-  }
-
-  const cr = canvas.getBoundingClientRect();
-  const wr = wrap.getBoundingClientRect();
-  if (cr.width === 0) { layer.style.display = 'none'; return; }
-
-  layer.style.display  = '';
-  layer.style.left     = (cr.left - wr.left) + 'px';
-  layer.style.top      = (cr.top  - wr.top)  + 'px';
-  layer.style.width    = cr.width  + 'px';
-  layer.style.height   = cr.height + 'px';
-}
-
-function getStickerExportData() {
-  const layer = document.getElementById('stickerLayer');
-  if (!layer) return [];
-  const lw = parseFloat(layer.style.width)  || 1;
-  const lh = parseFloat(layer.style.height) || 1;
-  return stickers.map(s => ({
-    emoji:    s.emoji,
-    xFrac:    s.x    / lw,
-    yFrac:    s.y    / lh,
-    sizeFrac: s.size / lw,
-    rotation: s.rotation,
-  }));
-}
-
-// Deselect sticker on clicking empty space in the layer
-document.addEventListener('DOMContentLoaded', () => {
-  const layer = document.getElementById('stickerLayer');
-  if (layer) {
-    layer.addEventListener('pointerdown', e => {
-      if (e.target === layer) {
-        selectedStickerId = null;
-        document.querySelectorAll('.sticker-el').forEach(el => el.classList.remove('sticker-selected'));
-      }
-    });
-  }
-  // Also update sticker layer when window resizes
-  window.addEventListener('resize', () => {
-    updateStickerLayerPosition();
-  });
-});
-
-window.buildStickerPanel = buildStickerPanel;
-window.addSticker        = addSticker;
-window.removeSticker     = removeSticker;
-window.fscSetMode        = fscSetMode;
+window.fscSetMode = fscSetMode;
 
 // ═══════════════════════════════════════════════════════════════════
 //  MOBILE CUSTOMIZE BOTTOM SHEET
@@ -1692,20 +1643,40 @@ function setMsText(val) {
 document.addEventListener('DOMContentLoaded', () => {
   // ── Sheet color swatches ──
   document.querySelectorAll('#msColorGrid .ms-swatch').forEach(sw => {
-    sw.addEventListener('click', () => {
+    // FIX: Replace sidebarSwatch.click() chain with a direct state update.
+    // On mobile the programmatic .click() on a hidden sidebar element can
+    // silently fail or lose its event (e.g. when the sidebar is display:none),
+    // causing strip color changes from the mobile sheet to have no effect.
+    // We now update sessionStorage + both swatch grids + preview directly.
+    const applySheetColor = () => {
+      const color = sw.dataset.color;
+      const name  = sw.dataset.name;
+
+      // Update mobile-sheet swatch selection
       document.querySelectorAll('#msColorGrid .ms-swatch').forEach(s => s.classList.remove('selected'));
       sw.classList.add('selected');
       const nameEl = document.getElementById('msColorName');
-      if (nameEl) nameEl.textContent = sw.dataset.name;
+      if (nameEl) nameEl.textContent = name;
 
-      // Mirror to sidebar swatch
-      const sidebarSwatch = document.querySelector(`.sidebar-swatch[data-color="${sw.dataset.color}"]`);
-      if (sidebarSwatch) sidebarSwatch.click();
-      else {
-        sessionStorage.setItem('photobooth_strip_color', sw.dataset.color);
-        updateLivePreview();
-      }
-    });
+      // Mirror selection state to sidebar swatch grid (visual only — no .click())
+      document.querySelectorAll('.sidebar-swatch').forEach(s => s.classList.remove('selected'));
+      const sidebarSwatch = document.querySelector(`.sidebar-swatch[data-color="${color}"]`);
+      if (sidebarSwatch) sidebarSwatch.classList.add('selected');
+      const sidebarNameEl = document.getElementById('sidebarColorName');
+      if (sidebarNameEl) sidebarNameEl.textContent = name;
+
+      // Persist and re-render — this is the authoritative update path
+      sessionStorage.setItem('photobooth_strip_color', color);
+      updateLivePreview();
+    };
+
+    sw.addEventListener('click', applySheetColor);
+    // Also handle touchend so the color applies immediately on touch without
+    // waiting for the synthesized click (relevant in scrollable sheets on iOS).
+    sw.addEventListener('touchend', e => {
+      e.preventDefault(); // suppress the follow-up click to avoid double-fire
+      applySheetColor();
+    }, { passive: false });
   });
 
   // ── Sheet text input ──
@@ -1738,3 +1709,38 @@ document.addEventListener('DOMContentLoaded', () => {
 window.openMobileCustomize  = openMobileCustomize;
 window.closeMobileCustomize = closeMobileCustomize;
 window.setMsText            = setMsText;
+
+// ── Mobile strip preview modal ──────────────────────────────────
+function openMobilePreview() {
+  const modal = document.getElementById('mobilePreviewModal');
+  if (!modal) return;
+
+  // Copy current live strip canvas into the modal canvas
+  const src = document.getElementById('liveStripCanvas');
+  const dst = document.getElementById('mobilePreviewCanvas');
+  const placeholder = document.getElementById('mobilePreviewPlaceholder');
+
+  if (src && dst && src.width > 0) {
+    dst.width  = src.width;
+    dst.height = src.height;
+    dst.getContext('2d').drawImage(src, 0, 0);
+    dst.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+  } else {
+    if (dst) dst.style.display = 'none';
+    if (placeholder) placeholder.style.display = '';
+  }
+
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobilePreview(e) {
+  if (e && e.target !== document.getElementById('mobilePreviewModal')) return;
+  const modal = document.getElementById('mobilePreviewModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+window.openMobilePreview  = openMobilePreview;
+window.closeMobilePreview = closeMobilePreview;

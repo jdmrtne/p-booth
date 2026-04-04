@@ -637,7 +637,10 @@ canvas#snapshot {
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; cursor: grab;
   opacity: 0; transition: opacity .15s;
-  pointer-events: none;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  z-index: 10;
 }
 .rearrange-slot.filled:hover .rearrange-drag-handle { opacity: 1; }
 .rearrange-slot.rearrange-dragging {
@@ -816,6 +819,7 @@ canvas#snapshot {
   .upload-slot:active { transform: scale(0.98); border-color: var(--pink); }
   .rearrange-slot.filled:hover { transform: none; box-shadow: none; }
   .rearrange-slot.filled:hover .rearrange-drag-handle { opacity: 1; }
+  .rearrange-slot.filled .rearrange-drag-handle { opacity: 1; width: 32px; height: 32px; font-size: 16px; background: rgba(255,107,157,.85); border-radius: 6px; top: 3px; left: 3px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2072,4 +2076,1067 @@ canvas#snapshot {
   .fsc-bottom { padding: 14px 16px !important; padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important; }
   .fsc-icon-btn { width: 40px !important; height: 40px !important; }
   .fsc-mode-btn { padding: 5px 10px !important; font-size: 0.62rem !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LANDSCAPE-ONLY MOBILE — strict landscape enforcement + fit-to-screen
+   Targets touch devices in landscape orientation with short screens
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Landscape overlay for ALL pages ── */
+.landscape-gate {
+  position: fixed; inset: 0; z-index: 999999;
+  background: rgba(10,0,24,.97);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px);
+  display: none;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; text-align: center; padding: 30px;
+}
+.landscape-gate.visible { display: flex; }
+.lg-phone-wrap { position: relative; width: 72px; height: 112px; margin-bottom: 4px; }
+.lg-phone {
+  width: 100%; height: 100%;
+  border: 3px solid rgba(255,107,157,.6);
+  border-radius: 14px;
+  background: rgba(255,107,157,.07);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem;
+  animation: lgTilt 2.4s cubic-bezier(.4,0,.2,1) infinite;
+}
+@keyframes lgTilt {
+  0%,25%  { transform: rotate(0deg); }
+  60%,85% { transform: rotate(-90deg); }
+  100%    { transform: rotate(0deg); }
+}
+.lg-arrow {
+  position: absolute; top: 50%; right: -28px;
+  font-size: 1.3rem; color: #ffb3ce;
+  animation: lgArrow 2.4s cubic-bezier(.4,0,.2,1) infinite;
+}
+@keyframes lgArrow {
+  0%,25%   { opacity: 0; transform: translateY(-50%) translateX(-5px); }
+  60%,85%  { opacity: 1; transform: translateY(-50%) translateX(0); }
+  100%     { opacity: 0; transform: translateY(-50%) translateX(-5px); }
+}
+.lg-title {
+  font-size: 1.35rem; font-weight: 900;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.lg-sub {
+  font-size: 0.8rem; font-weight: 600;
+  color: rgba(255,255,255,.5); max-width: 250px; line-height: 1.7;
+}
+.lg-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,107,157,.14); border: 1.5px solid rgba(255,107,157,.3);
+  color: #ffb3ce; font-size: 0.68rem; font-weight: 800;
+  padding: 5px 14px; border-radius: 20px; letter-spacing: .05em;
+  font-family: var(--font-ui);
+}
+
+/* ── Mobile landscape: entire layout must fit viewport height ── */
+@media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+
+  /* html/body: locked to viewport, no scroll */
+  html, body {
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden !important;
+  }
+
+  /* ── INDEX PAGE: compact layout grid ── */
+  .site-header {
+    padding: 8px 12px 0 !important;
+    gap: 3px !important;
+  }
+  .site-header h1 { font-size: 1.4rem !important; }
+  .site-header .eyebrow { font-size: 0.55rem !important; padding: 3px 10px !important; }
+  .site-header .subtitle,
+  .site-header .kr-label { display: none !important; }
+  .header-rule { margin: 6px 0 0 !important; }
+  .steps { padding: 6px 0 !important; font-size: 0.6rem !important; gap: 4px !important; }
+  .steps .step-num { width: 18px !important; height: 18px !important; font-size: 0.52rem !important; }
+  .section-head { margin: 6px 0 10px !important; }
+  .section-head h2 { font-size: 1rem !important; }
+  .section-head p  { display: none !important; }
+  .layout-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+    max-width: 100% !important;
+  }
+  .page-wrapper { padding: 0 10px !important; }
+  .layout-preview { min-height: 70px !important; padding: 8px !important; }
+  .layout-preview svg { max-height: 60px !important; }
+  .layout-info { padding: 6px 10px 8px !important; }
+  .layout-info .layout-name { font-size: 0.78rem !important; }
+  .layout-info .layout-desc { font-size: 0.6rem !important; }
+  .layout-info .layout-meta { display: none !important; }
+
+  /* ── CAMERA PAGE: 2-column landscape layout ── */
+  body.camera-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  body.camera-page .top-bar {
+    height: 40px !important;
+    padding: 0 10px !important;
+    flex-shrink: 0;
+  }
+  body.camera-page .top-bar-logo { font-size: 1rem !important; }
+  body.camera-page .top-bar-steps { font-size: 0.55rem !important; gap: 3px !important; }
+  body.camera-page .top-bar-steps span { display: none !important; }
+  body.camera-page .top-bar-steps .step-num { width: 18px !important; height: 18px !important; }
+
+  body.camera-page .mode-toggle-wrap {
+    padding: 4px 8px 0 !important;
+    flex-shrink: 0;
+  }
+  body.camera-page .mode-toggle { width: 100%; }
+  body.camera-page .mode-btn {
+    flex: 1;
+    padding: 5px 8px !important;
+    font-size: 0.64rem !important;
+  }
+
+  body.camera-page main {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 2-column: camera main | right preview panel */
+  body.camera-page .camera-layout {
+    display: flex !important;
+    flex-direction: row !important;
+    height: 100% !important;
+    padding: 4px 6px !important;
+    gap: 6px !important;
+  }
+
+  body.camera-page .camera-left-panel  { display: none !important; }
+
+  /* Show right panel as visible strip preview */
+  body.camera-page .camera-right-panel {
+    display: flex !important;
+    flex-direction: column;
+    width: 200px !important;
+    min-width: 180px !important;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  body.camera-page .camera-right-panel .sidebar-panel {
+    flex: 1;
+    padding: 8px !important;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  body.camera-page .camera-right-panel .sidebar-panel h3 {
+    font-size: 0.65rem !important;
+    margin-bottom: 4px !important;
+    flex-shrink: 0;
+  }
+  body.camera-page .camera-right-panel .live-preview-wrap {
+    flex: 1;
+    min-height: 0;
+    align-items: flex-start !important;
+  }
+  body.camera-page .camera-right-panel .live-preview-wrap canvas {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 100% !important;
+    display: block !important;
+  }
+
+  body.camera-page .camera-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Camera mode view: viewfinder + slim controls */
+  body.camera-page #cameraModeView {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  body.camera-page .camera-viewfinder {
+    flex: 1 !important;
+    width: 100% !important;
+    aspect-ratio: unset !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+  body.camera-page .shot-progress {
+    padding: 2px 6px 0 !important;
+    margin-top: 2px !important;
+    flex-shrink: 0;
+  }
+  body.camera-page .shot-bar-track { height: 3px !important; border-radius: 2px !important; }
+  body.camera-page .shot-labels { font-size: 0.58rem !important; margin-top: 1px !important; }
+  body.camera-page .status-msg {
+    font-size: 0.62rem !important;
+    padding: 2px 6px !important;
+    min-height: 20px !important;
+    flex-shrink: 0;
+  }
+  body.camera-page .mobile-thumbs {
+    margin-top: 3px !important;
+    gap: 4px !important;
+  }
+  body.camera-page .mobile-thumbs img {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 5px !important;
+  }
+  body.camera-page .camera-controls {
+    padding: 3px 4px 0 !important;
+    gap: 5px !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0;
+  }
+  body.camera-page .camera-controls .btn-lg {
+    padding: 8px 10px !important;
+    font-size: 0.68rem !important;
+  }
+  body.camera-page .mobile-customize-btn,
+  body.camera-page .camera-controls a.btn {
+    flex: 0 0 36px !important;
+    width: 36px !important;
+    padding: 8px 0 !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* Upload mode: grid with more columns, compact */
+  body.camera-page #uploadModeView {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.camera-page .upload-mode-container { padding: 6px !important; }
+  body.camera-page .upload-header { margin-bottom: 8px !important; gap: 8px !important; }
+  body.camera-page .upload-header-icon { font-size: 1.4rem !important; }
+  body.camera-page .upload-header h3 { font-size: 0.82rem !important; }
+  body.camera-page .upload-header p  { font-size: 0.62rem !important; }
+  body.camera-page .upload-slots-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 5px !important;
+  }
+  body.camera-page .upload-slot { min-height: 60px !important; font-size: 0.62rem !important; }
+  body.camera-page .upload-bulk-wrap { margin-bottom: 6px !important; }
+  body.camera-page .upload-bulk-btn { font-size: 0.68rem !important; padding: 8px 12px !important; }
+  body.camera-page #uploadContinueBtn { margin-top: 8px !important; padding: 10px !important; font-size: 0.75rem !important; }
+
+  /* Rearrange mode: compact grid */
+  body.camera-page #rearrangeView {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.camera-page .rearrange-container { padding: 6px !important; }
+  body.camera-page .rearrange-header-row { margin-bottom: 8px !important; gap: 8px !important; }
+  body.camera-page .rearrange-header-icon { font-size: 1.4rem !important; }
+  body.camera-page .rearrange-container h3 { font-size: 0.82rem !important; }
+  body.camera-page .rearrange-container p  { font-size: 0.62rem !important; }
+  body.camera-page .rearrange-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+  }
+  body.camera-page .rearrange-slot img { max-height: 80px !important; }
+  body.camera-page .rearrange-drag-hint { font-size: 0.58rem !important; padding: 4px 0 !important; }
+  body.camera-page .rearrange-actions {
+    gap: 6px !important;
+    padding-top: 6px !important;
+    flex-direction: row !important;
+  }
+  body.camera-page .rearrange-actions .btn {
+    width: auto !important;
+    padding: 8px 14px !important;
+    font-size: 0.7rem !important;
+  }
+
+  /* Sticker panel compact */
+  body.camera-page #stickerPanel { padding: 6px !important; margin: 4px 0 !important; }
+  body.camera-page .sticker-grid { grid-template-columns: repeat(8, 1fr) !important; gap: 3px !important; }
+  body.camera-page .sticker-btn  { font-size: 1.1rem !important; padding: 3px !important; }
+
+  /* ── RESULT PAGE ── */
+  body.result-page main {
+    overflow-y: auto !important;
+  }
+  .result-layout {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    grid-template-rows: auto 1fr auto !important;
+    gap: 8px !important;
+    padding: 6px 10px !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    align-items: start;
+  }
+  .result-layout .section-head {
+    grid-column: 1 / -1;
+    margin: 0 0 4px !important;
+  }
+  .result-layout .section-head h2 { font-size: 0.95rem !important; }
+  .result-layout .section-head p  { font-size: 0.65rem !important; margin-top: 2px !important; }
+  .strip-frame {
+    grid-column: 1;
+    grid-row: 2;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-height: calc(100vh - 40px - 50px - 20px) !important;
+  }
+  .strip-frame canvas,
+  .strip-frame img {
+    max-height: calc(100vh - 40px - 50px - 20px) !important;
+    max-width: 100% !important;
+    width: auto !important;
+  }
+  .result-sidebar {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 150px;
+    max-width: 180px;
+    overflow-y: auto;
+  }
+  .confetti-msg { font-size: 0.68rem !important; }
+  .result-actions {
+    flex-direction: column !important;
+    gap: 5px !important;
+  }
+  .result-actions .btn {
+    padding: 8px 12px !important;
+    font-size: 0.68rem !important;
+    min-width: unset !important;
+    flex: none !important;
+    width: 100% !important;
+  }
+}
+
+/* ── Touch-friendly upload slots ── */
+@media (pointer: coarse) {
+  /* Show tap-to-upload hint instead of drag hint on touch devices */
+  .upload-slot-reorder-hint { display: none !important; }
+  .touch-reorder-hint { display: block !important; }
+
+  /* Make upload slots easier to tap */
+  .upload-slot { min-height: 100px; cursor: pointer; }
+  .drag-handle  { display: none !important; } /* hide desktop drag handle */
+  .touch-handle {
+    display: flex !important;
+    position: absolute; top: 5px; left: 5px; z-index: 10;
+    width: 20px; height: 20px; border-radius: 4px;
+    background: rgba(255,107,157,.6); color: #fff;
+    align-items: center; justify-content: center;
+    font-size: 10px;
+  }
+  .upload-slot:not(.filled) .touch-handle { display: none !important; }
+}
+
+
+/* ── Sticker panel on result page ── */
+.sticker-panel-wrap {
+  background: rgba(168,85,247,.05);
+  border: 1.5px solid rgba(168,85,247,.15);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.sticker-panel-wrap .sticker-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.sticker-panel-wrap .sticker-panel-title {
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: var(--text);
+}
+.sticker-panel-wrap .sticker-panel-hint {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.sticker-panel-wrap .sticker-cat-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.sticker-panel-wrap .sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+/* Result page: strip-frame relative for sticker overlay */
+#stripFrame {
+  position: relative;
+}
+#stripFrame #stickerLayer {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+/* Result sidebar layout: sticker panel + actions in a column */
+.result-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Landscape mobile: result sidebar sticker panel compact */
+@media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+  .sticker-panel-wrap { padding: 6px 8px !important; margin-bottom: 4px !important; }
+  .sticker-panel-wrap .sticker-panel-hint { display: none !important; }
+  .sticker-panel-wrap .sticker-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 3px !important; }
+  .sticker-item-btn { font-size: 1.1rem !important; padding: 3px !important; }
+  .sticker-cat-btn  { padding: 3px 7px !important; font-size: 0.65rem !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PORTRAIT MOBILE — Full portrait support, dismissable gates
+   Supports 320px–480px screen widths (common phone portrait sizes)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Landscape gate: soft warning with dismiss button ── */
+.landscape-gate-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.landscape-gate-dismiss {
+  padding: 11px 26px;
+  border-radius: 50px;
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  letter-spacing: 0.02em;
+  transition: background 0.18s, border-color 0.18s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.landscape-gate-dismiss:hover  { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 255, 255, 0.45); }
+.landscape-gate-dismiss:active { background: rgba(255, 255, 255, 0.25); transform: scale(0.97); }
+
+/* Camera page overlay dismiss uses same class */
+#landscapeOverlay .landscape-gate-dismiss { margin-top: 4px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PORTRAIT RESULT PAGE — single-column scrollable layout
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+
+  /* Allow full-page scroll in portrait */
+  body.result-page {
+    min-height: 100vh;
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  body.result-page main {
+    overflow: visible !important;
+    flex: none !important;
+    min-height: 0 !important;
+    display: block !important;
+    height: auto !important;
+  }
+
+  /* Single-column result layout, scrollable */
+  .result-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 12px 14px 32px !important;
+    gap: 14px !important;
+    max-width: 100% !important;
+  }
+
+  /* Strip fills most of the width, height-constrained to not dominate */
+  .strip-frame {
+    grid-column: unset !important;
+    grid-row: unset !important;
+    max-height: none !important;
+    width: 100% !important;
+    padding: 12px !important;
+    border-radius: var(--radius-lg) !important;
+    /* Center the canvas inside */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+  .strip-frame canvas,
+  .strip-frame img {
+    max-width: 100% !important;
+    max-height: 50vh !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+
+  /* Sidebar stacks below strip */
+  .result-sidebar {
+    grid-column: unset !important;
+    grid-row: unset !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    overflow: visible !important;
+    min-width: unset !important;
+    max-width: unset !important;
+    width: 100% !important;
+  }
+
+  /* Action buttons: 2-up grid on portrait */
+  .result-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  /* Download button spans full width — most important action */
+  .result-actions #downloadBtn {
+    grid-column: 1 / -1 !important;
+    min-height: 52px !important;
+    font-size: 0.9rem !important;
+  }
+  .result-actions .btn {
+    min-height: 46px !important;
+    font-size: 0.78rem !important;
+    padding: 12px 14px !important;
+    text-align: center !important;
+    width: auto !important;
+    min-width: unset !important;
+    flex: unset !important;
+  }
+
+  /* Confetti message */
+  .confetti-msg { text-align: center !important; font-size: 0.8rem !important; }
+
+  /* Sticker panel compact */
+  #stickerPanel { margin: 4px 0 0 !important; }
+  .sticker-panel-wrap { padding: 10px !important; }
+  .sticker-grid { grid-template-columns: repeat(8, 1fr) !important; gap: 4px !important; }
+  .sticker-item-btn { font-size: 1.25rem !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PORTRAIT CAMERA PAGE — viewfinder + controls fit in portrait
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+
+  body.camera-page {
+    min-height: 100vh;
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  body.camera-page main {
+    overflow: visible !important;
+    flex: none !important;
+    height: auto !important;
+  }
+
+  /* Camera layout: single column, auto height */
+  .camera-layout {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Viewfinder: natural 4:3 aspect, no height cap */
+  .camera-viewfinder {
+    flex: none !important;
+    aspect-ratio: 4 / 3 !important;
+    max-height: none !important;
+    width: 100% !important;
+  }
+
+  /* Camera mode view: natural column flow */
+  #cameraModeView {
+    overflow: visible !important;
+    flex: none !important;
+  }
+
+  /* Upload / rearrange: always scrollable */
+  #uploadModeView,
+  #rearrangeView {
+    overflow-y: auto !important;
+    max-height: calc(100vh - 110px) !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PORTRAIT INDEX PAGE — layout grid in portrait
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+
+  /* Single-column layout grid, well sized */
+  .layout-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 440px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* Taller preview for portrait cards */
+  .layout-preview {
+    min-height: 170px !important;
+    padding: 20px 16px !important;
+  }
+  .layout-preview svg { max-height: 130px !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   UNIVERSAL TOUCH TARGET IMPROVEMENTS (all mobile)
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (pointer: coarse) {
+
+  /* All buttons: 44px minimum touch target */
+  .btn {
+    min-height: 44px !important;
+    touch-action: manipulation;
+  }
+  .btn-lg {
+    min-height: 50px !important;
+    padding: 13px 24px !important;
+  }
+
+  /* Mode toggle buttons */
+  .mode-btn { min-height: 44px !important; }
+
+  /* Layout cards: active state */
+  .layout-card { -webkit-tap-highlight-color: transparent; }
+
+  /* Sidebar swatches: easier to tap */
+  .sidebar-swatch, .ms-swatch {
+    min-width: 32px !important;
+    min-height: 32px !important;
+  }
+
+  /* Sticker buttons */
+  .sticker-item-btn {
+    min-height: 36px !important;
+    min-width: 36px !important;
+  }
+  .sticker-cat-btn {
+    min-height: 36px !important;
+    padding: 6px 14px !important;
+  }
+
+  /* Top bar back button */
+  .top-bar-back {
+    min-height: 36px !important;
+    padding: 8px 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+
+  /* Upload bulk button */
+  .upload-bulk-btn { min-height: 46px !important; }
+
+  /* Continue / build strip buttons */
+  #uploadContinueBtn,
+  #buildStripBtn {
+    min-height: 50px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SMALL PHONE PORTRAIT  (≤ 390px)
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 390px) and (orientation: portrait) {
+
+  /* Tighter header */
+  .site-header { padding: 14px 12px 0 !important; gap: 4px !important; }
+  .site-header h1 { font-size: 1.75rem !important; }
+  .site-header .subtitle { font-size: 0.72rem !important; }
+  .site-header .kr-label { font-size: 0.62rem !important; }
+  .header-rule { margin: 10px 0 0 !important; }
+
+  /* Compact steps */
+  .steps { font-size: 0.6rem !important; padding: 10px 0 !important; gap: 4px !important; }
+  .steps .step-num { width: 20px !important; height: 20px !important; font-size: 0.52rem !important; }
+
+  /* Section head */
+  .section-head { margin: 12px 0 16px !important; }
+  .section-head h2 { font-size: 1.05rem !important; }
+
+  /* Mode toggle */
+  .mode-btn { padding: 9px 8px !important; font-size: 0.68rem !important; }
+
+  /* Camera controls cramped */
+  .camera-controls { gap: 5px !important; }
+  .camera-controls .btn { font-size: 0.72rem !important; padding: 10px 8px !important; }
+
+  /* Result page action buttons */
+  .result-actions { grid-template-columns: 1fr !important; }
+  .result-actions .btn { grid-column: 1 / -1 !important; }
+
+  /* Top bar */
+  .top-bar-logo { font-size: 1rem !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM CONTROL DOCK — camera page portrait
+   Pins controls at bottom so they're always reachable with one hand
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+
+  /* Pin camera-controls to bottom of viewport */
+  .camera-controls {
+    position: sticky !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    background: rgba(253, 247, 255, 0.96) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-top: 1.5px solid var(--border) !important;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom, 10px)) !important;
+    margin: 0 -10px !important;  /* bleed past container padding */
+    z-index: 50 !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+
+  /* Start / main action button: flex-grow */
+  .camera-controls #startBtn,
+  .camera-controls #pauseBtn {
+    flex: 1 1 auto !important;
+    min-height: 50px !important;
+    font-size: 0.82rem !important;
+  }
+
+  /* Icon-only secondary buttons: fixed size */
+  .camera-controls a.btn,
+  .mobile-only-btn {
+    flex: 0 0 50px !important;
+    width: 50px !important;
+    height: 50px !important;
+    padding: 0 !important;
+    font-size: 1.15rem !important;
+    border-radius: 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Shot progress: don't get clipped by dock */
+  #cameraModeView .shot-progress { padding-bottom: 4px !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODE TOGGLE WRAP — portrait improvements
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+
+  .mode-toggle-wrap {
+    padding: 8px 10px 0 !important;
+    gap: 6px !important;
+    align-items: stretch !important;
+  }
+  .mode-toggle { flex: 1 !important; }
+  .mode-btn {
+    flex: 1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 10px 8px !important;
+    font-size: 0.72rem !important;
+  }
+
+  /* Floating action buttons next to mode toggle */
+  .mobile-only-btn {
+    flex: 0 0 46px !important;
+    width: 46px !important;
+    height: 46px !important;
+    padding: 0 !important;
+    font-size: 1.1rem !important;
+    border-radius: 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   TOP BAR — portrait mobile improvements
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+
+  .top-bar {
+    padding: 0 12px !important;
+    height: 50px !important;
+    /* Add safe-area for notch phones */
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    height: calc(50px + env(safe-area-inset-top, 0px)) !important;
+  }
+  .top-bar-logo { font-size: 1.15rem !important; }
+
+  /* Steps: show numbers only on very small screens */
+  .top-bar-steps { gap: 5px !important; font-size: 0.62rem !important; }
+  .top-bar-steps .divider { width: 14px !important; }
+
+  /* Back link: compact */
+  .top-bar-back {
+    font-size: 0.68rem !important;
+    padding: 6px 10px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+}
+
+/* Ultra-small: hide step labels */
+@media (max-width: 360px) {
+  .top-bar-steps span { display: none !important; }
+  .top-bar-steps .step-num { font-size: 0.52rem !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   UPLOAD & REARRANGE — portrait improvements
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+
+  .upload-mode-container,
+  .rearrange-container {
+    padding: 12px !important;
+    border-radius: var(--radius-lg) !important;
+  }
+
+  /* 2-column grids for portrait */
+  .upload-slots-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .rearrange-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* For 8-shot layouts: 3 columns */
+  .upload-slots-grid.cols-4 {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Larger upload slots */
+  .upload-slot { min-height: 100px !important; }
+
+  /* Upload continue button */
+  #uploadContinueBtn {
+    margin-top: 14px !important;
+    width: 100% !important;
+    min-height: 50px !important;
+    font-size: 0.84rem !important;
+  }
+
+  /* Rearrange actions: full-width column */
+  .rearrange-actions {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .rearrange-actions .btn {
+    width: 100% !important;
+    min-height: 46px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE THUMBS — portrait strip
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .mobile-thumbs {
+    display: flex !important;
+    gap: 6px !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    margin: 8px 0 2px !important;
+  }
+  .mobile-thumbs img {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 8px !important;
+    object-fit: cover !important;
+    border: 2px solid var(--pink-border) !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   TYPOGRAPHY SCALING — clamp()-based responsive text
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* Fluid heading sizes */
+  .section-head h2 {
+    font-size: clamp(1rem, 4vw, 1.4rem) !important;
+  }
+  .section-head p {
+    font-size: clamp(0.68rem, 2.5vw, 0.8rem) !important;
+  }
+
+  /* Status messages */
+  .status-msg {
+    font-size: clamp(0.65rem, 2.2vw, 0.78rem) !important;
+  }
+
+  /* Layout card names */
+  .layout-info .layout-name {
+    font-size: clamp(0.82rem, 3vw, 0.98rem) !important;
+  }
+
+  /* Button text */
+  .btn-lg {
+    font-size: clamp(0.75rem, 2.8vw, 0.88rem) !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   FSC OVERLAY — safe-area & portrait improvements
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Ensure FSC fills portrait screens correctly */
+@media (orientation: portrait) {
+  #fullscreenCameraOverlay {
+    /* Portrait: use dvh for better mobile viewport handling */
+    height: 100dvh;
+  }
+  /* Larger shutter in portrait for easy tapping */
+  .fsc-shutter,
+  .fsc-shutter-ring {
+    width: 92px !important;
+    height: 92px !important;
+  }
+  .fsc-shutter-inner { width: 74px !important; height: 74px !important; }
+  .fsc-shutter::after { width: 92px !important; height: 92px !important; }
+
+  /* Thumbs go horizontal across the bottom in portrait */
+  .fsc-thumb-strip {
+    flex-direction: row !important;
+    gap: 6px !important;
+    max-height: none !important;
+    max-width: 56px !important;
+    overflow: hidden !important;
+    flex-wrap: nowrap !important;
+  }
+  .fsc-thumb { width: 44px !important; height: 44px !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SAFE-AREA SUPPORT — notch + home indicator
+   ═══════════════════════════════════════════════════════════════════ */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  /* Camera controls dock respects home indicator */
+  .camera-controls {
+    padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+  }
+  /* Bottom sheet */
+  .mobile-sheet {
+    padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+  }
+  /* Result page actions at bottom */
+  .result-actions {
+    padding-bottom: max(4px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCROLLBAR HIDING on mobile (aesthetics)
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .result-layout::-webkit-scrollbar,
+  .mobile-sheet-body::-webkit-scrollbar,
+  #uploadModeView::-webkit-scrollbar,
+  #rearrangeView::-webkit-scrollbar,
+  .camera-left-panel::-webkit-scrollbar {
+    display: none;
+  }
+  .result-layout,
+  .mobile-sheet-body,
+  #uploadModeView,
+  #rearrangeView,
+  .camera-left-panel {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   NO HORIZONTAL SCROLL guard
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  html, body {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+  .page-wrapper,
+  .camera-layout,
+  .result-layout,
+  .upload-mode-container,
+  .rearrange-container {
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+  }
 }

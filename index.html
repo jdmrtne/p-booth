@@ -21,6 +21,20 @@
 </head>
 <body>
 
+  <!-- ─── LANDSCAPE GATE (all pages) ─── -->
+  <div class="landscape-gate" id="landscapeGate">
+    <div class="lg-phone-wrap">
+      <div class="lg-phone">📷</div>
+      <div class="lg-arrow">↻</div>
+    </div>
+    <div class="lg-title">Landscape Recommended</div>
+    <p class="lg-sub">p-booth looks best in landscape — rotate your phone for the full experience</p>
+    <div class="lg-badge">✦ Landscape mode recommended</div>
+    <div class="landscape-gate-actions">
+      <button class="landscape-gate-dismiss" onclick="dismissLandscapeGate()">Continue in Portrait →</button>
+    </div>
+  </div>
+
   <header class="site-header">
     <span class="eyebrow">♡ 인생네컷 스타일 ♡</span>
     <h1><span class="highlight">p-booth</span></h1>
@@ -49,6 +63,30 @@
 
   <script src="js/layout.js"></script>
   <script>
+    // ── Landscape gate (soft — dismissable) ──
+    let _gateDismissed = false;
+    function isMobileTouch() {
+      return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900;
+    }
+    function isPortrait() {
+      if (screen.orientation?.type) return screen.orientation.type.startsWith('portrait');
+      return window.innerHeight > window.innerWidth;
+    }
+    function checkLandscape() {
+      const gate = document.getElementById('landscapeGate');
+      if (!gate || _gateDismissed) return;
+      gate.classList.toggle('visible', isMobileTouch() && isPortrait());
+    }
+    function dismissLandscapeGate() {
+      _gateDismissed = true;
+      const gate = document.getElementById('landscapeGate');
+      if (gate) gate.classList.remove('visible');
+    }
+    checkLandscape();
+    window.addEventListener('resize', checkLandscape);
+    window.addEventListener('orientationchange', () => setTimeout(checkLandscape, 300));
+    if (screen.orientation) screen.orientation.addEventListener('change', () => setTimeout(checkLandscape, 300));
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
