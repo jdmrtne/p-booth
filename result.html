@@ -143,6 +143,8 @@
           const rot  = (stk.rotation || 0) * Math.PI / 180;
 
           ctx.save();
+          ctx.globalAlpha  = 1;          // ← ensure full opacity regardless of prior ctx state
+          ctx.fillStyle    = '#000000';  // ← reset fillStyle alpha that drawFooter leaves behind
           ctx.translate(cx, cy);
           ctx.rotate(rot);
           ctx.font         = `${size}px serif`;
