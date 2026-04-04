@@ -13,6 +13,16 @@ let layoutConfig    = null;
 let currentMode     = 'camera';
 let uploadedPhotos  = [];
 
+// ── STICKER STATE ─────────────────────────────────────────────────
+let stickers          = [];
+let selectedStickerId = null;
+let stickerIdCounter  = 0;
+let activeStickerCat  = 'hearts';
+
+// ── FULLSCREEN CAPTURE MODE ───────────────────────────────────────
+let fscCaptureMode    = 'auto';   // 'auto' | 'manual'
+let fscAborted        = false;
+
 // ── PAUSE STATE ──────────────────────────────────────────────────
 let isPaused            = false;
 let pauseResolveCallback = null;
@@ -522,6 +532,12 @@ async function continueFromUpload() {
 // ─── CAMERA SESSION ───────────────────────────────────────────────
 async function beginSession() {
   if (isCapturing) return;
+  await openFullscreenCamera();
+}
+
+// kept for internal use — no longer called from beginSession
+async function _legacyCaptureSequence_UNUSED() {
+  if (isCapturing) return;
   isCapturing    = true;
   isPaused       = false;
   capturedPhotos = new Array(layoutConfig.shots).fill(null);
@@ -688,6 +704,7 @@ function showRearrangeView(fromStorage) {
     : 'Drag your photos to change their order in the strip';
 
   buildRearrangeGrid();
+  buildStickerPanel();
   updateLivePreview();
 }
 
@@ -807,6 +824,10 @@ function swapCapturedPhotos(a, b) {
 async function buildStrip() {
   const btn = document.getElementById('buildStripBtn');
   if (btn) { btn.textContent = 'Preparing…'; btn.disabled = true; }
+
+  // Save sticker export data for result.html to apply
+  sessionStorage.setItem('photobooth_stickers', JSON.stringify(getStickerExportData()));
+
   const compressed = await Promise.all(capturedPhotos.map(p => p ? compressImage(p, 900, 0.78) : Promise.resolve(null)));
   safeSetPhotos(compressed);
   await sleep(100);
@@ -817,6 +838,15 @@ function retakeFromRearrange() {
   capturedPhotos = new Array(layoutConfig.shots).fill(null);
   sessionStorage.removeItem('photobooth_photos');
   sessionStorage.removeItem('photobooth_photos_idb');
+  sessionStorage.removeItem('photobooth_stickers');
+
+  // Clear stickers
+  stickers = [];
+  selectedStickerId = null;
+  const layer = document.getElementById('stickerLayer');
+  if (layer) { layer.innerHTML = ''; layer.style.display = 'none'; }
+  const stickerPanel = document.getElementById('stickerPanel');
+  if (stickerPanel) stickerPanel.style.display = 'none';
 
   const rearrangeV = document.getElementById('rearrangeView');
   const modeWrap   = document.getElementById('modeToggleWrap');
@@ -873,6 +903,8 @@ async function updateLivePreview() {
       canvas.getContext('2d').drawImage(strip, 0, 0);
       canvas.style.display = '';
       if (placeholder) placeholder.style.display = 'none';
+      // Position sticker layer over the canvas
+      requestAnimationFrame(updateStickerLayerPosition);
     } catch(e) { console.warn('Preview error:', e); }
   }, 150);
 }
@@ -890,7 +922,382 @@ function shiftHue(hex) {
   return {'#ff6b9d':'#c026d3','#a855f7':'#7c3aed','#2dd4bf':'#0891b2','#fbbf24':'#f97316'}[hex] || '#a855f7';
 }
 
-window.addEventListener('beforeunload', () => { stream?.getTracks().forEach(t => t.stop()); });
+// ═══════════════════════════════════════════════════════════════════
+//  FULLSCREEN CAMERA OVERLAY ENGINE
+// ═══════════════════════════════════════════════════════════════════
+
+let fscStream         = null;
+let fscFacingMode     = null;   // lazily set on first open
+let fscShutterLocked  = false;
+
+// ── OPEN / CLOSE ────────────────────────────────────────────────────
+async function openFullscreenCamera() {
+  // Initialize state
+  isCapturing    = true;
+  isPaused       = false;
+  fscAborted     = false;
+  capturedPhotos = new Array(layoutConfig.shots).fill(null);
+  sessionStorage.removeItem('photobooth_photos');
+
+  // Default facing mode: rear on mobile, front on desktop
+  if (!fscFacingMode) {
+    fscFacingMode = isMobileDevice() ? 'environment' : 'user';
+  }
+
+  // Build dynamic UI
+  fscBuildShotDots();
+  fscBuildThumbs();
+  fscUpdateProgressIndicator(0, layoutConfig.shots);
+
+  // Apply current mode UI
+  fscApplyModeUI();
+
+  // Prevent page scroll behind overlay
+  document.body.style.overflow = 'hidden';
+
+  // Show overlay
+  const overlay = document.getElementById('fullscreenCameraOverlay');
+  overlay.classList.add('fsc-open');
+
+  // Wire up controls (remove old listeners by cloning)
+  const closeBtn  = document.getElementById('fscCloseBtn');
+  const flipBtn   = document.getElementById('fscFlipBtn');
+  const shutterBtn = document.getElementById('fscShutterBtn');
+  const modeAutoBtn   = document.getElementById('fscModeAuto');
+  const modeManualBtn = document.getElementById('fscModeManual');
+
+  [closeBtn, flipBtn, shutterBtn, modeAutoBtn, modeManualBtn].forEach(el => {
+    if (!el) return;
+    const clone = el.cloneNode(true);
+    el.replaceWith(clone);
+  });
+
+  document.getElementById('fscCloseBtn').addEventListener('click', () => {
+    fscCancel();
+  });
+  document.getElementById('fscFlipBtn').addEventListener('click', () => {
+    if (!fscShutterLocked) fscFlip();
+  });
+  document.getElementById('fscShutterBtn').addEventListener('click', () => {
+    if (!fscShutterLocked) fscStartBurst();
+  });
+  document.getElementById('fscModeAuto')?.addEventListener('click', () => {
+    if (!fscShutterLocked) fscSetMode('auto');
+  });
+  document.getElementById('fscModeManual')?.addEventListener('click', () => {
+    if (!fscShutterLocked) fscSetMode('manual');
+  });
+
+  // Start camera stream
+  await fscStartStream();
+}
+
+async function fscStartStream() {
+  // Stop any existing fsc stream
+  if (fscStream) { fscStream.getTracks().forEach(t => t.stop()); fscStream = null; }
+
+  const video = document.getElementById('fscVideo');
+  try {
+    const constraints = {
+      video: {
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+        facingMode: fscFacingMode,
+      },
+      audio: false,
+    };
+    fscStream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = fscStream;
+    // Mirror only front camera
+    video.style.transform = (fscFacingMode === 'user') ? 'scaleX(-1)' : 'scaleX(1)';
+    await video.play();
+  } catch(err) {
+    // Fallback: try without facingMode constraint
+    try {
+      fscStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = fscStream;
+      video.style.transform = 'scaleX(-1)';
+      await video.play();
+    } catch(err2) {
+      console.error('FSC: camera unavailable', err2);
+    }
+  }
+}
+
+async function fscFlip() {
+  fscFacingMode = (fscFacingMode === 'user') ? 'environment' : 'user';
+  // Quick visual flip effect
+  const video = document.getElementById('fscVideo');
+  if (video) { video.style.opacity = '0'; video.style.transition = 'opacity 0.2s'; }
+  await fscStartStream();
+  if (video) {
+    await fscSleep(80);
+    video.style.opacity = '1';
+  }
+}
+
+function fscCancel() {
+  fscAborted = true;
+  fscShutterLocked = false;
+  fscCloseOverlay();
+  // Reset UI to ready state
+  capturedPhotos = new Array(layoutConfig.shots).fill(null);
+  isCapturing    = false;
+  resetPauseState();
+  if (startBtn) { startBtn.disabled = false; startBtn.style.opacity = '1'; }
+  buildThumbnailGrid();
+  updateLivePreview();
+  // Restart background preview camera
+  initCamera();
+}
+
+function fscCloseOverlay() {
+  if (fscStream) { fscStream.getTracks().forEach(t => t.stop()); fscStream = null; }
+  const overlay = document.getElementById('fullscreenCameraOverlay');
+  if (overlay) {
+    overlay.style.transition = 'opacity 0.25s';
+    overlay.style.opacity    = '0';
+    setTimeout(() => {
+      overlay.classList.remove('fsc-open');
+      overlay.style.opacity    = '';
+      overlay.style.transition = '';
+    }, 260);
+  }
+  document.body.style.overflow = '';
+}
+
+// ── BURST CAPTURE SEQUENCE ──────────────────────────────────────────
+async function fscStartBurst() {
+  if (fscShutterLocked) return;
+
+  const startIndex = capturedPhotos.filter(p => p !== null).length;
+  if (startIndex >= layoutConfig.shots) return;
+
+  fscShutterLocked = true;
+  const shutterBtn = document.getElementById('fscShutterBtn');
+  if (shutterBtn) {
+    shutterBtn.disabled = true;
+    shutterBtn.classList.add('fsc-capturing');
+    shutterBtn.classList.remove('fsc-ripple');
+    shutterBtn.offsetHeight;
+    shutterBtn.classList.add('fsc-ripple');
+  }
+
+  // Disable flip during capture
+  const flipBtn = document.getElementById('fscFlipBtn');
+  if (flipBtn) flipBtn.disabled = true;
+
+  if (fscCaptureMode === 'auto') {
+    // ── AUTO MODE: capture all shots automatically ──
+    for (let i = startIndex; i < layoutConfig.shots; i++) {
+      await fscCaptureOneShot(i);
+      if (fscAborted) return;
+    }
+    fscFinishCapture();
+  } else {
+    // ── MANUAL MODE: capture one shot, then re-enable shutter ──
+    await fscCaptureOneShot(startIndex);
+    if (fscAborted) return;
+
+    const nextIndex = startIndex + 1;
+    if (nextIndex >= layoutConfig.shots) {
+      fscFinishCapture();
+    } else {
+      // Re-enable for next shot
+      fscShutterLocked = false;
+      if (shutterBtn) {
+        shutterBtn.disabled = false;
+        shutterBtn.classList.remove('fsc-capturing');
+      }
+      if (flipBtn) flipBtn.disabled = false;
+    }
+  }
+}
+
+// Captures ONE shot: countdown → flash → compress → update UI
+async function fscCaptureOneShot(shotIndex) {
+  fscUpdateDots(shotIndex, false);
+  fscUpdateProgressIndicator(shotIndex + 1, layoutConfig.shots);
+
+  await fscRunCountdown(3, shotIndex);
+  if (fscAborted) return;
+
+  fscTriggerFlash();
+  const raw        = fscCaptureFrame();
+  const compressed = await compressImage(raw, 900, 0.80);
+  capturedPhotos[shotIndex] = compressed;
+
+  fscUpdateThumb(shotIndex, compressed);
+  updateThumbnail(shotIndex, compressed);
+  fscUpdateDots(shotIndex, true);
+
+  const isLast = (shotIndex === layoutConfig.shots - 1);
+  await fscShowCaptureFeedback(shotIndex + 1, isLast);
+}
+
+// Called when all shots are done
+function fscFinishCapture() {
+  fscCloseOverlay();
+  updateProgress(layoutConfig.shots);
+  updateStatus('All shots done! Review your photos below.', true);
+  updateLivePreview();
+  showRearrangeView(false);
+}
+
+// ── COUNTDOWN ───────────────────────────────────────────────────────
+function fscRunCountdown(from, shotIndex) {
+  return new Promise(resolve => {
+    const overlay  = document.getElementById('fscCountdown');
+    const numEl    = document.getElementById('fscCountdownNumber');
+    const subEl    = document.getElementById('fscCountdownSublabel');
+    if (subEl) subEl.textContent = `Shot ${shotIndex + 1} of ${layoutConfig.shots}`;
+
+    let count = from;
+    overlay.classList.add('fsc-visible');
+
+    function tick() {
+      if (fscAborted) {
+        overlay.classList.remove('fsc-visible');
+        resolve(); return;
+      }
+      if (count <= 0) {
+        overlay.classList.remove('fsc-visible');
+        resolve(); return;
+      }
+      numEl.textContent = count;
+      // Re-trigger pop animation each tick
+      numEl.style.animation = 'none';
+      numEl.offsetHeight;
+      numEl.style.animation = '';
+      count--;
+      setTimeout(tick, 1000);
+    }
+    tick();
+  });
+}
+
+// ── FRAME CAPTURE ───────────────────────────────────────────────────
+function fscCaptureFrame() {
+  const video  = document.getElementById('fscVideo');
+  const canvas = document.getElementById('fscCaptureCanvas');
+  if (!video || !canvas) return null;
+  const w = video.videoWidth  || 1280;
+  const h = video.videoHeight || 960;
+  canvas.width  = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  // Mirror front camera to match preview
+  if (fscFacingMode === 'user') {
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, 0, 0, w, h);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.85);
+}
+
+// ── FLASH ────────────────────────────────────────────────────────────
+function fscTriggerFlash() {
+  const flash = document.getElementById('fscFlash');
+  if (!flash) return;
+  flash.style.transition = 'opacity 0.05s';
+  flash.style.opacity    = '1';
+  setTimeout(() => {
+    flash.style.transition = 'opacity 0.42s ease-out';
+    flash.style.opacity    = '0';
+  }, 65);
+}
+
+// ── CAPTURED FEEDBACK ───────────────────────────────────────────────
+async function fscShowCaptureFeedback(shotNum, isLast) {
+  const fb   = document.getElementById('fscCapturedFeedback');
+  const text = document.getElementById('fscCapturedText');
+  const sub  = document.getElementById('fscCapturedSub');
+  if (!fb) return;
+  if (text) text.textContent = `Shot ${shotNum} of ${layoutConfig.shots} ✓`;
+  if (sub)  sub.textContent  = isLast ? 'All shots done! 🎉' : 'Get ready for the next one…';
+  fb.classList.add('fsc-visible');
+  await fscSleep(isLast ? 1000 : 1100);
+  fb.classList.remove('fsc-visible');
+  await fscSleep(180);
+}
+
+// ── SHOT DOTS ───────────────────────────────────────────────────────
+function fscBuildShotDots() {
+  const container = document.getElementById('fscShotDots');
+  const label     = document.getElementById('fscShotLabel');
+  if (!container) return;
+  container.innerHTML = '';
+  // Limit visible dots to 8 for aesthetic reasons; show count label otherwise
+  const showDots = layoutConfig.shots <= 8;
+  if (showDots) {
+    for (let i = 0; i < layoutConfig.shots; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'fsc-dot';
+      dot.id        = `fsc-dot-${i}`;
+      container.appendChild(dot);
+    }
+    container.style.display = 'flex';
+  } else {
+    container.style.display = 'none';
+  }
+  if (label) label.textContent = `${layoutConfig.name} · ${layoutConfig.shots} shots`;
+}
+
+function fscUpdateDots(index, captured) {
+  for (let i = 0; i < layoutConfig.shots; i++) {
+    const dot = document.getElementById(`fsc-dot-${i}`);
+    if (!dot) continue;
+    dot.classList.remove('captured', 'current');
+    if (i < index || (i === index && captured))   dot.classList.add('captured');
+    else if (i === index && !captured)             dot.classList.add('current');
+  }
+}
+
+// ── THUMBNAIL STRIP ─────────────────────────────────────────────────
+function fscBuildThumbs() {
+  const strip = document.getElementById('fscThumbStrip');
+  if (!strip) return;
+  strip.innerHTML = '';
+  const max = Math.min(layoutConfig.shots, 4);   // show up to 4 in overlay
+  for (let i = 0; i < max; i++) {
+    const thumb = document.createElement('div');
+    thumb.className = 'fsc-thumb';
+    thumb.id        = `fsc-thumb-${i}`;
+
+    const num = document.createElement('div');
+    num.className   = 'fsc-thumb-num';
+    num.textContent = i + 1;
+    thumb.appendChild(num);
+
+    const img = document.createElement('img');
+    img.id  = `fsc-thumb-img-${i}`;
+    img.alt = `Shot ${i + 1}`;
+    thumb.appendChild(img);
+    strip.appendChild(thumb);
+  }
+  if (layoutConfig.shots > 4) {
+    const more = document.createElement('div');
+    more.style.cssText = 'font-size:.65rem;font-weight:800;color:rgba(255,255,255,.4);text-align:center;';
+    more.textContent = `+${layoutConfig.shots - 4}`;
+    strip.appendChild(more);
+  }
+}
+
+function fscUpdateThumb(index, dataUrl) {
+  const thumb = document.getElementById(`fsc-thumb-${index}`);
+  const img   = document.getElementById(`fsc-thumb-img-${index}`);
+  if (thumb) thumb.classList.add('fsc-captured');
+  if (img)   img.src = dataUrl;
+}
+
+// ── UTILITY ─────────────────────────────────────────────────────────
+function fscSleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+window.addEventListener('beforeunload', () => {
+  stream?.getTracks().forEach(t => t.stop());
+  fscStream?.getTracks().forEach(t => t.stop());
+});
 
 // Expose to inline HTML handlers
 window.switchMode          = switchMode;
@@ -904,3 +1311,279 @@ window.retakeFromRearrange = retakeFromRearrange;
 window.togglePause         = togglePause;
 window.pauseSession        = pauseSession;
 window.resumeSession       = resumeSession;
+
+// ═══════════════════════════════════════════════════════════════════
+//  CAPTURE MODE: AUTO / MANUAL
+// ═══════════════════════════════════════════════════════════════════
+
+function fscSetMode(mode) {
+  fscCaptureMode = mode;
+  fscApplyModeUI();
+}
+
+function fscApplyModeUI() {
+  const autoBtn   = document.getElementById('fscModeAuto');
+  const manualBtn = document.getElementById('fscModeManual');
+  const indicator = document.getElementById('fscModeIndicator');
+  if (autoBtn)   autoBtn.classList.toggle('fsc-mode-active',   fscCaptureMode === 'auto');
+  if (manualBtn) manualBtn.classList.toggle('fsc-mode-active', fscCaptureMode === 'manual');
+  if (indicator) {
+    indicator.textContent = fscCaptureMode === 'auto'
+      ? '⚡ Auto Mode — press once to capture all'
+      : '☝ Manual Mode — press for each shot';
+  }
+}
+
+function fscUpdateProgressIndicator(current, total) {
+  const el = document.getElementById('fscProgressLabel');
+  if (!el) return;
+  if (current === 0) { el.textContent = ''; return; }
+  el.textContent = `Shot ${current} / ${total}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STICKER SYSTEM
+// ═══════════════════════════════════════════════════════════════════
+
+const STICKER_CATS = {
+  hearts:  { label: '❤️', title: 'Hearts',     items: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','💕','💗','💖','💝'] },
+  stars:   { label: '⭐', title: 'Stars',       items: ['⭐','🌟','✨','💫','🌠','🌙','⚡','☀️','🌈','❄️','🔥','💥'] },
+  flowers: { label: '🌸', title: 'Sparkles',    items: ['🌸','🌺','🌻','🌼','🌷','🍀','🦋','🫧','🎀','🎆','🎇','🌿'] },
+  smiles:  { label: '😊', title: 'Smiles',      items: ['😊','😄','🥰','😍','😘','🤩','😎','😜','🤪','😂','🥹','🤗'] },
+  booth:   { label: '📸', title: 'Photobooth',  items: ['📸','🎞️','🎭','🎊','🎉','👑','💎','🎬','🎨','✦','🌟','🫶'] },
+};
+
+function buildStickerPanel() {
+  const panel    = document.getElementById('stickerPanel');
+  const catTabs  = document.getElementById('stickerCatTabs');
+  const grid     = document.getElementById('stickerGrid');
+  if (!panel || !catTabs || !grid) return;
+
+  panel.style.display = '';
+
+  // Category tabs
+  catTabs.innerHTML = '';
+  Object.entries(STICKER_CATS).forEach(([key, cat]) => {
+    const btn = document.createElement('button');
+    btn.className = `sticker-cat-btn${key === activeStickerCat ? ' active' : ''}`;
+    btn.textContent = cat.label;
+    btn.title = cat.title;
+    btn.addEventListener('click', () => {
+      activeStickerCat = key;
+      document.querySelectorAll('.sticker-cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderStickerGrid();
+    });
+    catTabs.appendChild(btn);
+  });
+
+  renderStickerGrid();
+}
+
+function renderStickerGrid() {
+  const grid = document.getElementById('stickerGrid');
+  if (!grid) return;
+  const cat = STICKER_CATS[activeStickerCat];
+  grid.innerHTML = '';
+  cat.items.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.className = 'sticker-item-btn';
+    btn.textContent = emoji;
+    btn.title = 'Add sticker';
+    btn.addEventListener('click', () => addSticker(emoji));
+    grid.appendChild(btn);
+  });
+}
+
+function addSticker(emoji) {
+  // Ensure layer is positioned before adding
+  updateStickerLayerPosition();
+
+  const layer = document.getElementById('stickerLayer');
+  if (!layer) return;
+  const lw = parseFloat(layer.style.width)  || layer.offsetWidth  || 200;
+  const lh = parseFloat(layer.style.height) || layer.offsetHeight || 300;
+  if (lw === 0) return;
+
+  const id = ++stickerIdCounter;
+  const stk = {
+    id,
+    emoji,
+    x:        lw / 2 + (Math.random() - 0.5) * lw * 0.3,
+    y:        lh / 2 + (Math.random() - 0.5) * lh * 0.3,
+    size:     Math.max(36, lw * 0.13),
+    rotation: (Math.random() - 0.5) * 30,
+  };
+  stickers.push(stk);
+  renderStickerEl(stk);
+  selectSticker(id);
+}
+
+function renderStickerEl(stk) {
+  const layer = document.getElementById('stickerLayer');
+  if (!layer) return;
+  document.getElementById(`sticker-${stk.id}`)?.remove();
+
+  const el = document.createElement('div');
+  el.className = 'sticker-el';
+  el.id        = `sticker-${stk.id}`;
+  el.style.cssText = `position:absolute;left:${stk.x}px;top:${stk.y}px;transform:translate(-50%,-50%);cursor:move;user-select:none;touch-action:none;`;
+
+  const body = document.createElement('div');
+  body.className = 'sticker-body';
+  body.style.cssText = `position:relative;display:inline-flex;align-items:center;justify-content:center;transform:rotate(${stk.rotation}deg);transform-origin:center;`;
+
+  const emojiEl = document.createElement('span');
+  emojiEl.className   = 'sticker-emoji';
+  emojiEl.textContent = stk.emoji;
+  emojiEl.style.cssText = `font-size:${stk.size}px;line-height:1;display:block;pointer-events:none;`;
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'sticker-del-btn';
+  delBtn.textContent = '✕';
+  delBtn.title = 'Remove';
+
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'sticker-resize-handle';
+  resizeHandle.title = 'Resize';
+
+  const rotateHandle = document.createElement('div');
+  rotateHandle.className = 'sticker-rotate-handle';
+  rotateHandle.title = 'Rotate';
+  rotateHandle.textContent = '↻';
+
+  body.append(emojiEl, delBtn, resizeHandle, rotateHandle);
+  el.appendChild(body);
+  layer.appendChild(el);
+
+  // ── Drag ──────────────────────────────────────────────────────
+  let dragging = false, dStartX, dStartY, sStartX, sStartY;
+
+  el.addEventListener('pointerdown', e => {
+    if (e.target.closest('.sticker-del-btn,.sticker-resize-handle,.sticker-rotate-handle')) return;
+    e.stopPropagation(); e.preventDefault();
+    selectSticker(stk.id);
+    dragging = true; dStartX = e.clientX; dStartY = e.clientY;
+    sStartX = stk.x; sStartY = stk.y;
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    stk.x = sStartX + (e.clientX - dStartX);
+    stk.y = sStartY + (e.clientY - dStartY);
+    el.style.left = stk.x + 'px';
+    el.style.top  = stk.y + 'px';
+  });
+  el.addEventListener('pointerup', () => { dragging = false; });
+
+  // ── Delete ────────────────────────────────────────────────────
+  delBtn.addEventListener('click', e => { e.stopPropagation(); removeSticker(stk.id); });
+
+  // ── Resize ────────────────────────────────────────────────────
+  let resizing = false, rStartDist, rStartSize;
+  resizeHandle.addEventListener('pointerdown', e => {
+    e.stopPropagation(); e.preventDefault(); resizing = true;
+    const c = getStickerCenter(el);
+    rStartDist = Math.hypot(e.clientX - c.x, e.clientY - c.y) || 1;
+    rStartSize = stk.size;
+    resizeHandle.setPointerCapture(e.pointerId);
+  });
+  resizeHandle.addEventListener('pointermove', e => {
+    if (!resizing) return;
+    const c    = getStickerCenter(el);
+    const dist = Math.hypot(e.clientX - c.x, e.clientY - c.y);
+    stk.size   = Math.max(18, rStartSize * (dist / rStartDist));
+    emojiEl.style.fontSize = stk.size + 'px';
+  });
+  resizeHandle.addEventListener('pointerup', () => { resizing = false; });
+
+  // ── Rotate ────────────────────────────────────────────────────
+  let rotating = false, rotBase;
+  rotateHandle.addEventListener('pointerdown', e => {
+    e.stopPropagation(); e.preventDefault(); rotating = true;
+    const c = getStickerCenter(el);
+    rotBase = Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180/Math.PI - stk.rotation;
+    rotateHandle.setPointerCapture(e.pointerId);
+  });
+  rotateHandle.addEventListener('pointermove', e => {
+    if (!rotating) return;
+    const c = getStickerCenter(el);
+    stk.rotation = Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180/Math.PI - rotBase;
+    body.style.transform = `rotate(${stk.rotation}deg)`;
+  });
+  rotateHandle.addEventListener('pointerup', () => { rotating = false; });
+}
+
+function getStickerCenter(el) {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width/2, y: r.top + r.height/2 };
+}
+
+function selectSticker(id) {
+  selectedStickerId = id;
+  document.querySelectorAll('.sticker-el').forEach(e => e.classList.remove('sticker-selected'));
+  document.getElementById(`sticker-${id}`)?.classList.add('sticker-selected');
+}
+
+function removeSticker(id) {
+  stickers = stickers.filter(s => s.id !== id);
+  document.getElementById(`sticker-${id}`)?.remove();
+  if (selectedStickerId === id) selectedStickerId = null;
+}
+
+function updateStickerLayerPosition() {
+  const canvas = document.getElementById('liveStripCanvas');
+  const layer  = document.getElementById('stickerLayer');
+  const wrap   = document.getElementById('livePreviewWrap');
+  if (!canvas || !layer || !wrap) return;
+
+  if (canvas.style.display === 'none' || !canvas.width) {
+    layer.style.display = 'none'; return;
+  }
+
+  const cr = canvas.getBoundingClientRect();
+  const wr = wrap.getBoundingClientRect();
+  if (cr.width === 0) { layer.style.display = 'none'; return; }
+
+  layer.style.display  = '';
+  layer.style.left     = (cr.left - wr.left) + 'px';
+  layer.style.top      = (cr.top  - wr.top)  + 'px';
+  layer.style.width    = cr.width  + 'px';
+  layer.style.height   = cr.height + 'px';
+}
+
+function getStickerExportData() {
+  const layer = document.getElementById('stickerLayer');
+  if (!layer) return [];
+  const lw = parseFloat(layer.style.width)  || 1;
+  const lh = parseFloat(layer.style.height) || 1;
+  return stickers.map(s => ({
+    emoji:    s.emoji,
+    xFrac:    s.x    / lw,
+    yFrac:    s.y    / lh,
+    sizeFrac: s.size / lw,
+    rotation: s.rotation,
+  }));
+}
+
+// Deselect sticker on clicking empty space in the layer
+document.addEventListener('DOMContentLoaded', () => {
+  const layer = document.getElementById('stickerLayer');
+  if (layer) {
+    layer.addEventListener('pointerdown', e => {
+      if (e.target === layer) {
+        selectedStickerId = null;
+        document.querySelectorAll('.sticker-el').forEach(el => el.classList.remove('sticker-selected'));
+      }
+    });
+  }
+  // Also update sticker layer when window resizes
+  window.addEventListener('resize', () => {
+    updateStickerLayerPosition();
+  });
+});
+
+window.buildStickerPanel = buildStickerPanel;
+window.addSticker        = addSticker;
+window.removeSticker     = removeSticker;
+window.fscSetMode        = fscSetMode;

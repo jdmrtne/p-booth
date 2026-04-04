@@ -345,6 +345,17 @@
             </div>
             <div class="rearrange-grid" id="rearrangeGrid"></div>
             <p class="rearrange-drag-hint">⟺ Drag to reorder · Long-press on mobile</p>
+
+            <!-- ── STICKER PANEL ── -->
+            <div id="stickerPanel" style="display:none;">
+              <div class="sticker-panel-header">
+                <span class="sticker-panel-title">🎨 Add Stickers</span>
+                <span class="sticker-panel-hint">Tap to add · Drag to move · Resize & rotate with handles</span>
+              </div>
+              <div class="sticker-cat-tabs" id="stickerCatTabs"></div>
+              <div class="sticker-grid" id="stickerGrid"></div>
+            </div>
+
             <div class="rearrange-actions">
               <button class="btn btn-secondary" onclick="retakeFromRearrange()">↺ Retake All</button>
               <button class="btn btn-primary btn-lg" id="buildStripBtn" onclick="buildStrip()">✦ Build Strip →</button>
@@ -358,15 +369,107 @@
       <div class="camera-right-panel">
         <div class="sidebar-panel" id="panelPreview" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
           <h3>Strip Preview <span id="previewShotCount" style="font-size:.6rem;font-weight:600;color:var(--text-light);"></span></h3>
-          <div class="live-preview-wrap" id="livePreviewWrap" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+          <div class="live-preview-wrap" id="livePreviewWrap" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
             <canvas id="liveStripCanvas" style="max-width:100%;max-height:100%;width:auto;height:auto;display:none;"></canvas>
             <div class="live-preview-placeholder" id="livePreviewPlaceholder"><span>📸</span><p>Preview appears here</p></div>
+            <!-- Sticker layer floats above the preview canvas -->
+            <div id="stickerLayer" style="position:absolute;overflow:hidden;pointer-events:auto;display:none;"></div>
           </div>
         </div>
       </div>
 
     </div>
   </main>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       FULLSCREEN CAMERA OVERLAY — sits above entire UI
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="fullscreenCameraOverlay">
+
+    <!-- Live video feed — fills entire screen -->
+    <video id="fscVideo" autoplay playsinline muted></video>
+    <canvas id="fscCaptureCanvas"></canvas>
+
+    <!-- TOP CONTROLS -->
+    <div class="fsc-top">
+      <button class="fsc-icon-btn" id="fscCloseBtn" aria-label="Cancel session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+
+      <div class="fsc-shot-counter">
+        <div class="fsc-shot-dots" id="fscShotDots"></div>
+        <span class="fsc-shot-label" id="fscShotLabel"></span>
+      </div>
+
+      <button class="fsc-icon-btn" id="fscFlipBtn" aria-label="Flip camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+          <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- FRAME GUIDE — helps users align themselves -->
+    <div class="fsc-frame-guide" id="fscFrameGuide">
+      <div class="fsc-corner fsc-tl"></div>
+      <div class="fsc-corner fsc-tr"></div>
+      <div class="fsc-corner fsc-bl"></div>
+      <div class="fsc-corner fsc-br"></div>
+    </div>
+
+    <!-- COUNTDOWN OVERLAY -->
+    <div class="fsc-countdown" id="fscCountdown">
+      <div class="fsc-countdown-number" id="fscCountdownNumber">3</div>
+      <div class="fsc-countdown-sublabel" id="fscCountdownSublabel"></div>
+    </div>
+
+    <!-- WHITE FLASH -->
+    <div class="fsc-flash" id="fscFlash"></div>
+
+    <!-- CAPTURED FEEDBACK -->
+    <div class="fsc-captured-feedback" id="fscCapturedFeedback">
+      <div class="fsc-captured-check">✓</div>
+      <div class="fsc-captured-text" id="fscCapturedText">Shot 1 captured!</div>
+      <div class="fsc-captured-sub" id="fscCapturedSub">Get ready for the next one…</div>
+    </div>
+
+    <!-- BOTTOM CONTROLS -->
+    <div class="fsc-bottom">
+      <!-- Left: thumbnails of captured shots -->
+      <div class="fsc-bottom-side">
+        <div class="fsc-thumb-strip" id="fscThumbStrip"></div>
+      </div>
+
+      <!-- Center: mode toggle + shutter + indicator -->
+      <div class="fsc-shutter-wrap">
+
+        <!-- Mode toggle above shutter -->
+        <div class="fsc-mode-toggle">
+          <button class="fsc-mode-btn" id="fscModeManual">☝ Manual</button>
+          <button class="fsc-mode-btn fsc-mode-active" id="fscModeAuto">⚡ Auto</button>
+        </div>
+
+        <button class="fsc-shutter" id="fscShutterBtn" aria-label="Take photo">
+          <div class="fsc-shutter-ring">
+            <div class="fsc-shutter-inner"></div>
+          </div>
+        </button>
+
+        <!-- Progress + mode indicator below shutter -->
+        <div class="fsc-shutter-meta">
+          <div class="fsc-progress-label" id="fscProgressLabel"></div>
+          <div class="fsc-mode-indicator" id="fscModeIndicator">⚡ Auto Mode — press once to capture all</div>
+        </div>
+      </div>
+
+      <!-- Right: empty placeholder for balance -->
+      <div class="fsc-bottom-side"></div>
+    </div>
+
+  </div>
+  <!-- END FULLSCREEN CAMERA OVERLAY -->
 
   <script src="js/canvas.js"></script>
   <script src="js/camera.js"></script>

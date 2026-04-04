@@ -105,6 +105,18 @@
 
       try {
         generatedCanvas = await generatePhotoStrip(photos, currentLayout);
+
+        // ── Apply stickers saved from camera.html ──────────────────
+        const stickersRaw = sessionStorage.getItem('photobooth_stickers');
+        if (stickersRaw) {
+          try {
+            const stickerData = JSON.parse(stickersRaw);
+            if (stickerData && stickerData.length > 0) {
+              await applyStickersToCanvas(generatedCanvas, stickerData);
+            }
+          } catch(e) { console.warn('Sticker apply failed:', e); }
+        }
+
         const rc = document.getElementById('resultCanvas');
         rc.width  = generatedCanvas.width;
         rc.height = generatedCanvas.height;
@@ -114,6 +126,35 @@
         console.error(err); showError();
       }
     });
+
+    // ── STICKER RENDERING ─────────────────────────────────────────────
+    // Each sticker is stored as fractions of the canvas dimensions.
+    // We draw each emoji at the correct scaled position using canvas 2D.
+    function applyStickersToCanvas(canvas, stickers) {
+      return new Promise(resolve => {
+        const ctx = canvas.getContext('2d');
+        const cw  = canvas.width;
+        const ch  = canvas.height;
+
+        stickers.forEach(stk => {
+          const cx   = stk.xFrac    * cw;
+          const cy   = stk.yFrac    * ch;
+          const size = stk.sizeFrac * cw;
+          const rot  = (stk.rotation || 0) * Math.PI / 180;
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(rot);
+          ctx.font         = `${size}px serif`;
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(stk.emoji, 0, 0);
+          ctx.restore();
+        });
+
+        resolve();
+      });
+    }
 
     function showResult() {
       document.getElementById('processingState').classList.add('hidden');
