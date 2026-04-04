@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fdf7ff"/>
+      <stop offset="100%" style="stop-color:#ffe0f0"/>
+    </linearGradient>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b9d"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#bg)"/>
+  <!-- Camera body -->
+  <rect x="28" y="60" width="136" height="90" rx="16" fill="url(#grad)" opacity="0.15"/>
+  <rect x="28" y="60" width="136" height="90" rx="16" fill="none" stroke="url(#grad)" stroke-width="5"/>
+  <!-- Lens -->
+  <circle cx="96" cy="105" r="28" fill="none" stroke="url(#grad)" stroke-width="5"/>
+  <circle cx="96" cy="105" r="17" fill="url(#grad)" opacity="0.3"/>
+  <circle cx="96" cy="105" r="8" fill="url(#grad)"/>
+  <!-- Flash bump -->
+  <rect x="120" y="50" width="22" height="16" rx="6" fill="url(#grad)"/>
+  <!-- Shutter dot -->
+  <circle cx="52" cy="78" r="6" fill="url(#grad)" opacity="0.6"/>
+  <!-- p-booth text -->
+  <text x="96" y="173" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="url(#grad)" text-anchor="middle" letter-spacing="-0.5">p-booth</text>
+</svg>

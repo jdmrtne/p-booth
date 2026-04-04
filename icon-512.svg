@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fdf7ff"/>
+      <stop offset="100%" style="stop-color:#ffe0f0"/>
+    </linearGradient>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b9d"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="100" fill="url(#bg)"/>
+  <rect x="72" y="155" width="368" height="245" rx="44" fill="url(#grad)" opacity="0.12"/>
+  <rect x="72" y="155" width="368" height="245" rx="44" fill="none" stroke="url(#grad)" stroke-width="14"/>
+  <circle cx="256" cy="278" r="76" fill="none" stroke="url(#grad)" stroke-width="14"/>
+  <circle cx="256" cy="278" r="46" fill="url(#grad)" opacity="0.28"/>
+  <circle cx="256" cy="278" r="22" fill="url(#grad)"/>
+  <rect x="318" y="128" width="60" height="42" rx="16" fill="url(#grad)"/>
+  <circle cx="136" cy="198" r="16" fill="url(#grad)" opacity="0.55"/>
+  <text x="256" y="466" font-family="Arial, sans-serif" font-size="52" font-weight="900" fill="url(#grad)" text-anchor="middle" letter-spacing="-1">p-booth</text>
+</svg>

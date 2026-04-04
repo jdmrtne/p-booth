@@ -1629,3 +1629,447 @@ canvas#snapshot {
 
 .sticker-selected .sticker-rotate-handle { display: flex; }
 .sticker-rotate-handle:active { cursor: grabbing; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE OPTIMIZE — bottom sheet customize + layout fixes
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Show customize button on mobile, keep panels on desktop ── */
+@media (max-width: 768px) {
+  .mobile-customize-btn { display: inline-flex !important; padding: 14px 16px !important; }
+}
+
+/* ── Mobile bottom sheet overlay backdrop ── */
+.mobile-sheet-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(10, 0, 24, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  align-items: flex-end;
+  justify-content: center;
+  animation: sheetBackdropIn 0.2s ease;
+}
+@keyframes sheetBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.mobile-sheet-overlay.open { display: flex; }
+
+/* ── The sheet itself ── */
+.mobile-sheet {
+  width: 100%;
+  max-width: 520px;
+  background: var(--surface);
+  border-radius: 26px 26px 0 0;
+  padding: 0 0 env(safe-area-inset-bottom, 16px);
+  box-shadow: 0 -8px 48px rgba(168,85,247,0.18);
+  animation: sheetSlideUp 0.28s cubic-bezier(0.34,1.08,0.64,1);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ── Sheet drag handle ── */
+.mobile-sheet-handle {
+  width: 36px; height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 12px auto 0;
+  flex-shrink: 0;
+}
+
+/* ── Sheet header ── */
+.mobile-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 14px;
+  border-bottom: 1.5px solid var(--border);
+  flex-shrink: 0;
+}
+.mobile-sheet-title {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: var(--text);
+}
+.mobile-sheet-close {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--pink-dim);
+  color: var(--pink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Sheet scrollable body ── */
+.mobile-sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Section label ── */
+.ms-section { display: flex; flex-direction: column; gap: 8px; }
+.ms-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* ── Color swatches in sheet ── */
+.ms-color-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+.ms-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s, border-color 0.15s;
+  outline: none;
+  touch-action: manipulation;
+}
+.ms-swatch:hover { transform: scale(1.15); }
+.ms-swatch.selected {
+  border-color: var(--pink) !important;
+  transform: scale(1.18);
+  box-shadow: 0 0 0 2.5px rgba(255,107,157,.3);
+}
+.ms-swatch[data-color="#ffffff"] { border-color: #ddd; }
+.ms-color-name {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ── Input ── */
+.ms-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: rgba(255,255,255,.7);
+  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color .2s;
+  -webkit-appearance: none;
+}
+.ms-input:focus { border-color: var(--pink); }
+
+/* ── Quick text buttons ── */
+.ms-quick-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.ms-quick-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(255,107,157,.3);
+  background: rgba(255,107,157,.07);
+  color: var(--pink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background .15s;
+}
+.ms-quick-btn:active { background: rgba(255,107,157,.18); }
+
+/* ── Divider ── */
+.ms-divider {
+  border: none;
+  border-top: 1px dashed rgba(168,85,247,.15);
+  margin: 8px 0;
+}
+
+/* ── Mobile layout improvements for camera page ── */
+@media (max-width: 768px) {
+
+  /* Make the mode toggle more compact */
+  .mode-toggle-wrap { padding: 8px 16px 0; }
+
+  /* Ensure camera main area fills well */
+  .camera-main { min-height: 0; }
+
+  /* Taller viewfinder on mobile — fills more screen */
+  .camera-viewfinder {
+    flex: 1 1 0;
+    min-height: 200px;
+  }
+
+  /* Status message smaller on mobile */
+  .status-msg { font-size: 0.75rem; padding: 6px 12px; }
+
+  /* Camera controls row — make sure all buttons fit */
+  .camera-controls {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .camera-controls .btn-lg {
+    padding: 12px 14px;
+    font-size: 0.78rem;
+  }
+
+  /* Shot progress compact */
+  .shot-progress { padding: 6px 12px 0; }
+
+  /* Top bar: hide steps text labels on very small screens */
+  @media (max-width: 380px) {
+    .top-bar-steps span { display: none; }
+    .top-bar-steps .step-num { font-size: 0.55rem; }
+  }
+}
+
+/* ── PWA safe-area support (notch / home bar) ── */
+@supports (padding: max(0px)) {
+  .top-bar {
+    padding-top: max(0px, env(safe-area-inset-top));
+  }
+  .fsc-bottom {
+    padding-bottom: max(22px, env(safe-area-inset-bottom, 22px));
+  }
+  .mobile-sheet {
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 16px));
+  }
+}
+
+/* ── Touch action improvements for interactive elements ── */
+.fsc-shutter,
+.fsc-icon-btn,
+.btn,
+.ms-swatch,
+.sidebar-swatch,
+.layout-card {
+  touch-action: manipulation;
+}
+
+/* Shutter: slightly larger tap target on mobile */
+@media (max-width: 768px) {
+  .fsc-shutter { width: 90px; height: 90px; }
+  .fsc-shutter-ring { width: 90px; height: 90px; }
+  .fsc-shutter-inner { width: 72px; height: 72px; }
+  .fsc-shutter::after { width: 90px; height: 90px; }
+}
+
+/* ── Landscape overlay must NOT cover fsc overlay ── */
+/* (z-index fix: fsc overlay is 9999, landscape is 99999 — we keep
+   landscape higher but the JS now hides it when fsc is active) */
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE SCALE & FIT — ensure all content is visible on small screens
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* ── html/body: no horizontal scroll ── */
+  html, body { max-width: 100vw; overflow-x: hidden; }
+
+  /* ── Main camera layout: full-height flex column ── */
+  .camera-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 10px 16px !important;
+    gap: 0 !important;
+    height: auto !important;
+    min-height: 0;
+  }
+
+  /* ── Center column fills available space ── */
+  .camera-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  /* ── Mode toggle: compact pill, no overflow ── */
+  .mode-toggle-wrap {
+    padding: 8px 10px 0 !important;
+  }
+  .mode-toggle {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .mode-btn {
+    flex: 1;
+    text-align: center;
+    padding: 9px 10px !important;
+    font-size: 0.72rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Viewfinder: 4:3 box, max height so controls are always visible ── */
+  #cameraModeView {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .camera-viewfinder {
+    flex: 0 0 auto;
+    width: 100% !important;
+    aspect-ratio: 4/3 !important;
+    max-height: 52vw; /* prevents viewfinder pushing controls off-screen */
+    border-radius: 12px !important;
+    overflow: hidden;
+  }
+
+  /* ── Shot progress bar ── */
+  .shot-progress {
+    padding: 6px 8px 0 !important;
+    margin-top: 6px !important;
+  }
+  .shot-bar-track { height: 5px; border-radius: 3px; }
+  .shot-labels { font-size: 0.68rem; margin-top: 3px; }
+
+  /* ── Status message ── */
+  .status-msg {
+    font-size: 0.7rem !important;
+    padding: 4px 8px !important;
+    min-height: 26px !important;
+  }
+
+  /* ── Mobile thumbnails ── */
+  .mobile-thumbs {
+    margin-top: 6px !important;
+  }
+  .mobile-thumbs img {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 7px !important;
+  }
+
+  /* ── Camera controls row ── */
+  .camera-controls {
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    padding: 6px 0 0 !important;
+    margin-top: 6px !important;
+    align-items: stretch;
+  }
+  .camera-controls .btn {
+    padding: 11px 10px !important;
+    font-size: 0.75rem !important;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .camera-controls #startBtn {
+    flex: 1 1 auto !important;
+    min-width: 0;
+  }
+  /* Customize and layout buttons: fixed small size */
+  .mobile-customize-btn,
+  .camera-controls a.btn {
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    padding: 11px 0 !important;
+    font-size: 1rem !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Upload slots ── */
+  .upload-mode-container { padding: 10px 8px !important; }
+  .upload-slots-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .upload-slot { min-height: 90px !important; font-size: 0.72rem !important; }
+
+  /* ── Rearrange ── */
+  .rearrange-container { padding: 10px 8px !important; }
+  .rearrange-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .rearrange-slot img { max-height: 120px !important; }
+  .rearrange-actions { gap: 8px !important; padding-top: 10px !important; }
+  .rearrange-actions .btn { font-size: 0.78rem !important; padding: 11px 14px !important; }
+
+  /* ── Layout selection page ── */
+  .layout-grid { gap: 12px !important; }
+  .layout-preview { min-height: 110px !important; padding: 14px 12px !important; }
+  .layout-preview svg { max-height: 100px !important; }
+  .layout-info { padding: 10px 14px 14px !important; }
+  .layout-info .layout-name { font-size: 0.88rem !important; }
+  .layout-info .layout-desc { font-size: 0.68rem !important; }
+
+  /* ── Site header ── */
+  .site-header { padding: 16px 12px 0 !important; gap: 5px !important; }
+  .site-header h1 { font-size: 2rem !important; }
+  .site-header .subtitle { font-size: 0.78rem !important; }
+  .site-header .kr-label { font-size: 0.65rem !important; }
+  .header-rule { margin: 12px 0 0 !important; }
+
+  /* ── Steps indicator ── */
+  .steps { padding: 12px 0 !important; font-size: 0.65rem !important; gap: 5px !important; }
+  .steps .step-num { width: 20px !important; height: 20px !important; font-size: 0.55rem !important; }
+
+  /* ── Top nav ── */
+  .top-bar { padding: 0 10px !important; height: 46px !important; }
+  .top-bar-logo { font-size: 1.1rem !important; }
+  .top-bar-steps { font-size: 0.6rem !important; gap: 4px !important; }
+  .top-bar-steps .divider { width: 12px !important; }
+
+  /* ── Ready state overlay (inside viewfinder) ── */
+  .ready-state { gap: 8px !important; min-height: unset !important; padding: 12px !important; }
+  .ready-state .big-icon { font-size: 2.2rem !important; }
+  .ready-state h2 { font-size: 1rem !important; }
+  .ready-state p  { font-size: 0.7rem !important; }
+  .pose-count-badge { font-size: 0.62rem !important; padding: 4px 10px !important; }
+
+  /* ── Section heading ── */
+  .section-head { margin: 14px 0 18px !important; }
+  .section-head h2 { font-size: 1.15rem !important; }
+  .section-head p  { font-size: 0.72rem !important; }
+  .page-wrapper { padding: 0 12px !important; }
+
+  /* ── Sticker panel ── */
+  #stickerPanel { padding: 8px !important; margin: 8px 0 4px !important; }
+  .sticker-grid { grid-template-columns: repeat(6, 1fr) !important; gap: 4px !important; }
+  .sticker-btn  { font-size: 1.3rem !important; padding: 4px !important; }
+}
+
+/* Very small phones (≤ 380px) */
+@media (max-width: 380px) {
+  .top-bar-steps span { display: none; }
+  .camera-viewfinder { max-height: 48vw; }
+  .mode-btn { font-size: 0.65rem !important; padding: 8px 7px !important; }
+  .camera-controls .btn { padding: 10px 8px !important; font-size: 0.7rem !important; }
+}
+
+/* ── Fullscreen camera: scale shutter and controls for small screens ── */
+@media (max-width: 400px) {
+  .fsc-shutter, .fsc-shutter-ring { width: 78px !important; height: 78px !important; }
+  .fsc-shutter-inner { width: 62px !important; height: 62px !important; }
+  .fsc-bottom { padding: 14px 16px !important; padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important; }
+  .fsc-icon-btn { width: 40px !important; height: 40px !important; }
+  .fsc-mode-btn { padding: 5px 10px !important; font-size: 0.62rem !important; }
+}

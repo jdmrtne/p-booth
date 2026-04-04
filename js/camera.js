@@ -99,7 +99,10 @@ function isPortraitMode() {
 function checkAndShowLandscapePrompt() {
   const overlay = document.getElementById('landscapeOverlay');
   if (!overlay) return;
-  const shouldShow = currentMode === 'camera' && isMobileDevice() && isPortraitMode();
+  // Never show landscape overlay when the fullscreen camera overlay is active —
+  // it has a lower z-index and would silently block all taps including the shutter.
+  const fscOpen = document.getElementById('fullscreenCameraOverlay')?.classList.contains('fsc-open');
+  const shouldShow = !fscOpen && currentMode === 'camera' && isMobileDevice() && isPortraitMode();
   overlay.classList.toggle('visible', shouldShow);
 }
 
@@ -932,16 +935,17 @@ let fscShutterLocked  = false;
 
 // ── OPEN / CLOSE ────────────────────────────────────────────────────
 async function openFullscreenCamera() {
-  // Initialize state
-  isCapturing    = true;
-  isPaused       = false;
-  fscAborted     = false;
-  capturedPhotos = new Array(layoutConfig.shots).fill(null);
+  // Initialize state — always reset shutter lock so retakes work correctly
+  isCapturing      = true;
+  isPaused         = false;
+  fscAborted       = false;
+  fscShutterLocked = false;
+  capturedPhotos   = new Array(layoutConfig.shots).fill(null);
   sessionStorage.removeItem('photobooth_photos');
 
-  // Default facing mode: rear on mobile, front on desktop
+  // Default facing mode: front camera (selfie) — this is a photo booth app
   if (!fscFacingMode) {
-    fscFacingMode = isMobileDevice() ? 'environment' : 'user';
+    fscFacingMode = 'user';
   }
 
   // Build dynamic UI
@@ -951,6 +955,10 @@ async function openFullscreenCamera() {
 
   // Apply current mode UI
   fscApplyModeUI();
+
+  // Hide landscape overlay — its z-index (99999) would block fsc (9999) and swallow shutter taps
+  const lsOverlay = document.getElementById('landscapeOverlay');
+  if (lsOverlay) lsOverlay.classList.remove('visible');
 
   // Prevent page scroll behind overlay
   document.body.style.overflow = 'hidden';
@@ -978,9 +986,22 @@ async function openFullscreenCamera() {
   document.getElementById('fscFlipBtn').addEventListener('click', () => {
     if (!fscShutterLocked) fscFlip();
   });
-  document.getElementById('fscShutterBtn').addEventListener('click', () => {
+
+  // ── Shutter: touchend for instant mobile response, click as fallback ──
+  const newShutter = document.getElementById('fscShutterBtn');
+  let shutterTouched = false;
+  newShutter.addEventListener('touchend', (e) => {
+    e.preventDefault(); // stops the delayed synthetic click from also firing
+    if (!fscShutterLocked) {
+      shutterTouched = true;
+      fscStartBurst();
+    }
+  }, { passive: false });
+  newShutter.addEventListener('click', () => {
+    if (shutterTouched) { shutterTouched = false; return; } // already handled by touchend
     if (!fscShutterLocked) fscStartBurst();
   });
+
   document.getElementById('fscModeAuto')?.addEventListener('click', () => {
     if (!fscShutterLocked) fscSetMode('auto');
   });
@@ -1064,6 +1085,8 @@ function fscCloseOverlay() {
     }, 260);
   }
   document.body.style.overflow = '';
+  // Re-evaluate landscape prompt now that fsc is closed
+  setTimeout(checkAndShowLandscapePrompt, 100);
 }
 
 // ── BURST CAPTURE SEQUENCE ──────────────────────────────────────────
@@ -1074,6 +1097,17 @@ async function fscStartBurst() {
   if (startIndex >= layoutConfig.shots) return;
 
   fscShutterLocked = true;
+
+  // Safety net: if the lock isn't released within 45 s (e.g. due to a JS error),
+  // auto-reset so the user is never permanently stuck.
+  const lockResetTimer = setTimeout(() => {
+    fscShutterLocked = false;
+    const sb = document.getElementById('fscShutterBtn');
+    const fb = document.getElementById('fscFlipBtn');
+    if (sb) { sb.disabled = false; sb.classList.remove('fsc-capturing'); }
+    if (fb) fb.disabled = false;
+  }, 45000);
+
   const shutterBtn = document.getElementById('fscShutterBtn');
   if (shutterBtn) {
     shutterBtn.disabled = true;
@@ -1087,30 +1121,41 @@ async function fscStartBurst() {
   const flipBtn = document.getElementById('fscFlipBtn');
   if (flipBtn) flipBtn.disabled = true;
 
-  if (fscCaptureMode === 'auto') {
-    // ── AUTO MODE: capture all shots automatically ──
-    for (let i = startIndex; i < layoutConfig.shots; i++) {
-      await fscCaptureOneShot(i);
-      if (fscAborted) return;
-    }
-    fscFinishCapture();
-  } else {
-    // ── MANUAL MODE: capture one shot, then re-enable shutter ──
-    await fscCaptureOneShot(startIndex);
-    if (fscAborted) return;
-
-    const nextIndex = startIndex + 1;
-    if (nextIndex >= layoutConfig.shots) {
+  try {
+    if (fscCaptureMode === 'auto') {
+      // ── AUTO MODE: capture all shots automatically ──
+      for (let i = startIndex; i < layoutConfig.shots; i++) {
+        await fscCaptureOneShot(i);
+        if (fscAborted) { clearTimeout(lockResetTimer); return; }
+      }
+      clearTimeout(lockResetTimer);
       fscFinishCapture();
     } else {
-      // Re-enable for next shot
-      fscShutterLocked = false;
-      if (shutterBtn) {
-        shutterBtn.disabled = false;
-        shutterBtn.classList.remove('fsc-capturing');
+      // ── MANUAL MODE: capture one shot, then re-enable shutter ──
+      await fscCaptureOneShot(startIndex);
+      clearTimeout(lockResetTimer);
+      if (fscAborted) return;
+
+      const nextIndex = startIndex + 1;
+      if (nextIndex >= layoutConfig.shots) {
+        fscFinishCapture();
+      } else {
+        // Re-enable for next shot
+        fscShutterLocked = false;
+        if (shutterBtn) {
+          shutterBtn.disabled = false;
+          shutterBtn.classList.remove('fsc-capturing');
+        }
+        if (flipBtn) flipBtn.disabled = false;
       }
-      if (flipBtn) flipBtn.disabled = false;
     }
+  } catch (err) {
+    // Unexpected error — release the lock so user isn't stuck
+    clearTimeout(lockResetTimer);
+    fscShutterLocked = false;
+    if (shutterBtn) { shutterBtn.disabled = false; shutterBtn.classList.remove('fsc-capturing'); }
+    if (flipBtn) flipBtn.disabled = false;
+    console.error('fscStartBurst error:', err);
   }
 }
 
@@ -1186,7 +1231,8 @@ function fscCaptureFrame() {
   canvas.width  = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
-  // Mirror front camera to match preview
+  // Front camera: save mirrored (matches the preview — what you see is what you get)
+  // Rear camera: save natural orientation
   if (fscFacingMode === 'user') {
     ctx.translate(w, 0);
     ctx.scale(-1, 1);
@@ -1587,3 +1633,108 @@ window.buildStickerPanel = buildStickerPanel;
 window.addSticker        = addSticker;
 window.removeSticker     = removeSticker;
 window.fscSetMode        = fscSetMode;
+
+// ═══════════════════════════════════════════════════════════════════
+//  MOBILE CUSTOMIZE BOTTOM SHEET
+// ═══════════════════════════════════════════════════════════════════
+
+function openMobileCustomize() {
+  const sheet = document.getElementById('mobileCustomizeSheet');
+  if (!sheet) return;
+
+  // Sync current values from sessionStorage / sidebar inputs
+  const savedColor = sessionStorage.getItem('photobooth_strip_color') || '#ffffff';
+  const savedText  = sessionStorage.getItem('photobooth_custom_text')  || '';
+  const today      = new Date().toISOString().slice(0, 10);
+  const savedDate  = sessionStorage.getItem('photobooth_custom_date')  || today;
+
+  // Sync color swatches
+  document.querySelectorAll('#msColorGrid .ms-swatch').forEach(sw => {
+    const isSelected = sw.dataset.color === savedColor;
+    sw.classList.toggle('selected', isSelected);
+    if (isSelected) {
+      const nameEl = document.getElementById('msColorName');
+      if (nameEl) nameEl.textContent = sw.dataset.name;
+    }
+  });
+
+  // Sync text
+  const msText = document.getElementById('msTextInput');
+  if (msText) msText.value = savedText;
+
+  // Sync date
+  const msDate = document.getElementById('msDateInput');
+  if (msDate) msDate.value = savedDate;
+
+  sheet.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileCustomize(e) {
+  // If called from backdrop click, only close if clicking the backdrop itself
+  if (e && e.target !== document.getElementById('mobileCustomizeSheet')) return;
+  const sheet = document.getElementById('mobileCustomizeSheet');
+  if (!sheet) return;
+  sheet.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function setMsText(val) {
+  const inp = document.getElementById('msTextInput');
+  const sidebar = document.getElementById('sidebarTextInput');
+  if (inp) inp.value = val;
+  if (sidebar) { sidebar.value = val; sidebar.dispatchEvent(new Event('input')); }
+  sessionStorage.setItem('photobooth_custom_text', val);
+  updateLivePreview();
+}
+
+// Wire up sheet swatches and inputs after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  // ── Sheet color swatches ──
+  document.querySelectorAll('#msColorGrid .ms-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('#msColorGrid .ms-swatch').forEach(s => s.classList.remove('selected'));
+      sw.classList.add('selected');
+      const nameEl = document.getElementById('msColorName');
+      if (nameEl) nameEl.textContent = sw.dataset.name;
+
+      // Mirror to sidebar swatch
+      const sidebarSwatch = document.querySelector(`.sidebar-swatch[data-color="${sw.dataset.color}"]`);
+      if (sidebarSwatch) sidebarSwatch.click();
+      else {
+        sessionStorage.setItem('photobooth_strip_color', sw.dataset.color);
+        updateLivePreview();
+      }
+    });
+  });
+
+  // ── Sheet text input ──
+  const msText = document.getElementById('msTextInput');
+  if (msText) {
+    msText.addEventListener('input', () => {
+      const sidebar = document.getElementById('sidebarTextInput');
+      if (sidebar) { sidebar.value = msText.value; sidebar.dispatchEvent(new Event('input')); }
+      else {
+        sessionStorage.setItem('photobooth_custom_text', msText.value);
+        updateLivePreview();
+      }
+    });
+  }
+
+  // ── Sheet date input ──
+  const msDate = document.getElementById('msDateInput');
+  if (msDate) {
+    msDate.addEventListener('input', () => {
+      const sidebar = document.getElementById('sidebarDateInput');
+      if (sidebar) { sidebar.value = msDate.value; sidebar.dispatchEvent(new Event('input')); }
+      else {
+        sessionStorage.setItem('photobooth_custom_date', msDate.value);
+        updateLivePreview();
+      }
+    });
+  }
+});
+
+window.openMobileCustomize  = openMobileCustomize;
+window.closeMobileCustomize = closeMobileCustomize;
+window.setMsText            = setMsText;

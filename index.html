@@ -2,8 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>p-booth — Choose Your Layout</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ff6b9d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="p-booth">
+  <link rel="apple-touch-icon" href="icon-192.svg">
+
+  <!-- SEO / Social -->
+  <meta name="description" content="Korean-style 인생네컷 photo booth — choose a layout, take photos, download your strip.">
+  <meta name="mobile-web-app-capable" content="yes">
+
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -35,5 +48,12 @@
   </main>
 
   <script src="js/layout.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
