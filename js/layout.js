@@ -156,19 +156,19 @@ function renderLayoutCards() {
     card.dataset.layoutId = layout.id;
 
     card.innerHTML = `
-      <div class="badge-selected">✓ Selected</div>
+      <div class="badge-selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.65em;height:.65em;vertical-align:-.05em;"><polyline points="20 6 9 17 4 12"/></svg> Selected</div>
       <div class="layout-preview">${generatePreviewSVG(layout, '#ffffff')}</div>
       <div class="layout-info">
         <div class="layout-name">
           ${layout.name}
-          <span class="kr">${layout.kr}</span>
+
         </div>
         <div class="layout-meta">
           <span class="meta-tag" style="color:${tc.text};background:${tc.bg};border:1.5px solid ${tc.border};">${layout.format}</span>
           <span class="meta-tag" style="color:${tc.text};background:${tc.bg};border:1.5px solid ${tc.border};">${layout.shots} shot${layout.shots>1?'s':''}</span>
         </div>
         <button class="btn btn-primary" id="select-btn-${layout.id}" onclick="selectLayout('${layout.id}', event)">
-          <span>✦</span> Select Layout
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Select Layout
         </button>
       </div>
     `;
@@ -192,7 +192,7 @@ function selectLayout(id, event) {
 
   // Animate button then navigate
   const btn = document.getElementById(`select-btn-${id}`);
-  if (btn) { btn.textContent = '✓ Loading…'; btn.disabled = true; }
+  if (btn) { btn.textContent = 'Loading…'; btn.disabled = true; }
   setTimeout(() => { window.location.href = 'camera.html'; }, 200);
 }
 

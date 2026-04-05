@@ -115,7 +115,7 @@ function pauseSession() {
 
   // Update pause button
   if (pauseBtn) {
-    pauseBtn.innerHTML = '▶ Resume';
+    pauseBtn.innerHTML = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume';
     pauseBtn.classList.add('is-paused');
   }
   updateStatus('Session paused — press Resume to continue', false);
@@ -131,7 +131,7 @@ function resumeSession() {
 
   // Restore pause button
   if (pauseBtn) {
-    pauseBtn.innerHTML = '⏸ Pause';
+    pauseBtn.innerHTML = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause';
     pauseBtn.classList.remove('is-paused');
   }
 
@@ -160,7 +160,7 @@ function resetPauseState() {
   if (pausedOverlay) pausedOverlay.classList.remove('visible');
   if (pauseBtn) {
     pauseBtn.style.display = 'none';
-    pauseBtn.innerHTML = '⏸ Pause';
+    pauseBtn.innerHTML = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause';
     pauseBtn.classList.remove('is-paused');
   }
 }
@@ -403,7 +403,7 @@ function buildUploadSlots() {
         <span class="upload-slot-num">Photo ${i+1}</span>
       </div>
       <img class="upload-slot-img" id="upload-img-${i}" src="" alt="Photo ${i+1}" style="display:none;">
-      <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)">✕</button>
+      <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.8rem;height:.8rem;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       <input type="file" accept="image/*" capture="environment" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
     `;
     // Click → file picker (works on both desktop and mobile)
@@ -685,7 +685,7 @@ async function _legacyCaptureSequence_UNUSED() {
   if (startBtn) { startBtn.disabled = true; startBtn.style.opacity = '.5'; }
   if (pauseBtn) {
     pauseBtn.style.display = '';
-    pauseBtn.innerHTML = '⏸ Pause';
+    pauseBtn.innerHTML = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause';
     pauseBtn.classList.remove('is-paused');
   }
 
@@ -772,8 +772,8 @@ async function showCapturedPause(shotNum, isLast) {
   if (snapshotCanvas) snapshotCanvas.style.display = 'block';
   if (videoEl)        videoEl.style.display        = 'none';
 
-  if (capturedLabel)    capturedLabel.textContent    = `Shot ${shotNum} captured! ✓`;
-  if (capturedSublabel) capturedSublabel.textContent = isLast ? 'All shots done! 🎉' : 'Get ready for the next one…';
+  if (capturedLabel)    capturedLabel.textContent    = `Shot ${shotNum} captured!`;
+  if (capturedSublabel) capturedSublabel.textContent = isLast ? 'All shots done!' : 'Get ready for the next one…';
 
   if (capturedStateEl) capturedStateEl.classList.add('visible');
   await sleep(1400);
@@ -1456,8 +1456,8 @@ async function fscShowCaptureFeedback(shotNum, isLast) {
   const text = document.getElementById('fscCapturedText');
   const sub  = document.getElementById('fscCapturedSub');
   if (!fb) return;
-  if (text) text.textContent = `Shot ${shotNum} of ${layoutConfig.shots} ✓`;
-  if (sub)  sub.textContent  = isLast ? 'All shots done! 🎉' : 'Get ready for the next one…';
+  if (text) text.textContent = `Shot ${shotNum} of ${layoutConfig.shots}`;
+  if (sub)  sub.textContent  = isLast ? 'All shots done!' : 'Get ready for the next one…';
   fb.classList.add('fsc-visible');
   await fscSleep(isLast ? 1000 : 1100);
   fb.classList.remove('fsc-visible');
@@ -1571,8 +1571,8 @@ function fscApplyModeUI() {
   if (manualBtn) manualBtn.classList.toggle('fsc-mode-active', fscCaptureMode === 'manual');
   if (indicator) {
     indicator.textContent = fscCaptureMode === 'auto'
-      ? '⚡ Auto Mode — press once to capture all'
-      : '☝ Manual Mode — press for each shot';
+      ? 'Auto Mode — tap once to capture all'
+      : 'Manual Mode — tap for each shot';
   }
 }
 

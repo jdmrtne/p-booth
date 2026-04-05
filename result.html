@@ -32,12 +32,12 @@
   <!-- ─── LANDSCAPE GATE ─── -->
   <div class="landscape-gate" id="landscapeGate">
     <div class="lg-phone-wrap">
-      <div class="lg-phone">📷</div>
-      <div class="lg-arrow">↻</div>
+      <div class="lg-phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:2.4rem;height:2.4rem;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+      <div class="lg-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:1.3rem;height:1.3rem;"><path d="M21.5 2v6h-6"/><path d="M2.5 12a10 10 0 0 1 17-7.1L21.5 8"/></svg></div>
     </div>
     <div class="lg-title">Landscape Recommended</div>
     <p class="lg-sub">p-booth looks best in landscape — rotate your phone for the full experience</p>
-    <div class="lg-badge">✦ Landscape mode recommended</div>
+    <div class="lg-badge"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M2.5 12a10 10 0 0 1 17-7.1L21.5 8"/></svg> Landscape mode recommended</div>
     <div class="landscape-gate-actions">
       <button class="landscape-gate-dismiss" onclick="dismissLandscapeGate()">Continue in Portrait →</button>
     </div>
@@ -46,14 +46,14 @@
   <nav class="top-bar">
     <a class="top-bar-logo" href="index.html">p-booth</a>
     <div class="top-bar-steps">
-      <div class="step done"><div class="step-num">✓</div><span>Layout</span></div>
+      <div class="step done"><div class="step-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.7em;height:.7em;"><polyline points="20 6 9 17 4 12"/></svg></div><span>Layout</span></div>
       <div class="divider"></div>
-      <div class="step done"><div class="step-num">✓</div><span>Capture</span></div>
+      <div class="step done"><div class="step-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.7em;height:.7em;"><polyline points="20 6 9 17 4 12"/></svg></div><span>Capture</span></div>
       <div class="divider"></div>
       <div class="step active"><div class="step-num">3</div><span>Download</span></div>
     </div>
     <div class="top-bar-right">
-      <a class="top-bar-back" href="camera.html" onclick="return confirmBack()">← Rearrange</a>
+      <a class="top-bar-back" href="camera.html">← Back</a>
     </div>
   </nav>
 
@@ -62,12 +62,12 @@
 
       <div class="section-head fade-in" style="margin:0;">
         <h2 id="resultHeading">Your Photo Strip</h2>
-        <p id="resultSub">Looking great! Save it before it disappears ✨</p>
+        <p id="resultSub">Looking great! Save it before it disappears</p>
       </div>
 
       <div class="processing-state" id="processingState">
         <div class="spinner"></div>
-        <p>Developing your film… ♡</p>
+        <p>Developing your film…</p>
       </div>
 
       <div class="strip-frame fade-in hidden" id="stripFrame" style="position:relative;">
@@ -77,36 +77,30 @@
       </div>
 
       <div class="result-sidebar hidden" id="resultSidebar">
-        <p class="confetti-msg" id="successMsg">✨ Save it, share it, stick it on everything!</p>
 
-        <!-- ── STICKER PANEL ── -->
-        <div id="stickerPanel" class="sticker-panel-wrap">
-          <div class="sticker-panel-header">
-            <span class="sticker-panel-title">🎨 Add Stickers</span>
-            <span class="sticker-panel-hint">Tap to add · Drag to move</span>
-          </div>
-          <div class="sticker-cat-tabs" id="stickerCatTabs"></div>
-          <div class="sticker-grid" id="stickerGrid"></div>
-        </div>
+        <!-- ── STICKER BUTTON — opens bottom sheet ── -->
+        <button class="btn btn-secondary btn-lg" id="addStickerBtn" onclick="openStickerSheet()" style="width:100%;">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Add Stickers
+        </button>
 
         <div class="result-actions" id="resultActions">
           <button class="btn btn-primary btn-lg" id="downloadBtn" onclick="downloadStrip()">
-            ⬇ Download PNG
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PNG
           </button>
           <button class="btn btn-secondary result-rearrange-btn btn-lg" onclick="goBackToRearrange()">
-            ⟺ Rearrange Photos
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg> Rearrange Photos
           </button>
           <button class="btn btn-purple btn-lg" onclick="retakePhotos()">
-            ↺ Retake Photos
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg> Retake Photos
           </button>
           <a class="btn btn-ghost btn-lg" href="index.html">
-            ⊞ New Layout
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> New Layout
           </a>
         </div>
       </div>
 
       <div class="hidden" id="errorState" style="text-align:center;padding:40px;">
-        <div style="font-size:2.5rem;margin-bottom:16px;">📂</div>
+        <div style="margin-bottom:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:3rem;height:3rem;display:block;margin:auto;opacity:.5;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
         <p style="color:var(--text-muted);font-size:.82rem;font-weight:700;margin-bottom:20px;">
           No photos found. Please complete a capture session first.
         </p>
@@ -116,6 +110,86 @@
     </div>
   </main>
 
+  <!-- ═══════════════════════════════════════════════════════════
+       STICKER BOTTOM SHEET
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="stickerSheet" class="mobile-sheet-overlay" onclick="closeStickerSheet(event)">
+    <div class="mobile-sheet">
+      <div class="mobile-sheet-handle"></div>
+      <div class="mobile-sheet-header">
+        <span class="mobile-sheet-title"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Add Stickers</span>
+        <button class="mobile-sheet-close" onclick="closeStickerSheet()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="mobile-sheet-body" style="gap:10px;">
+        <p style="font-size:0.7rem;color:var(--text-muted);font-weight:600;margin:0;">Tap to add · Drag to move</p>
+        <div id="stickerPanel" style="display:flex;flex-direction:column;gap:8px;min-height:0;">
+          <div id="stickerCatTabs" style="display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;"></div>
+          <div id="stickerGrid" style="
+            display:grid;
+            grid-template-columns:repeat(8,1fr);
+            grid-auto-rows:36px;
+            gap:4px;
+            overflow-y:auto;
+            -webkit-overflow-scrolling:touch;
+            max-height:160px;
+          "></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;flex-shrink:0;" onclick="closeStickerSheet()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openStickerSheet() {
+      const sheet = document.getElementById('stickerSheet');
+      if (sheet) { sheet.classList.add('open'); document.body.style.overflow = 'hidden'; }
+    }
+    function closeStickerSheet(e) {
+      // Called with no arg (Done button) or backdrop click
+      if (e instanceof Event && e.target !== document.getElementById('stickerSheet')) return;
+      const sheet = document.getElementById('stickerSheet');
+      if (sheet) { sheet.classList.remove('open'); document.body.style.overflow = ''; }
+    }
+  </script>
+  <style>
+    #stickerSheet .sticker-item-btn {
+      all: unset;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 36px;
+      font-size: 1.3rem;
+      line-height: 1;
+      border-radius: 6px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.55);
+      border: 1.5px solid rgba(168,85,247,0.12);
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s;
+    }
+    #stickerSheet .sticker-item-btn:active { transform: scale(0.9); }
+    #stickerSheet .sticker-cat-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 10px;
+      font-size: 1rem;
+      border-radius: 20px;
+      border: 1.5px solid rgba(168,85,247,.2);
+      background: transparent;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #stickerSheet .sticker-cat-btn.active {
+      background: var(--pink);
+      border-color: var(--pink);
+      color: white;
+    }
+  </style>
+
+  <script src="js/icons.js"></script>
   <script src="js/canvas.js"></script>
   <script>
     // ── Landscape gate (soft — dismissable) ──
@@ -213,14 +287,16 @@
       downloadCanvas(out, `pbooth-${currentLayout?.id || 'strip'}-${ts}.png`);
 
       setTimeout(() => {
-        btn.innerHTML = '⬇ Download PNG';
+        btn.innerHTML = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PNG';
         btn.disabled = false;
         btn.style.background = '';
       }, 1800);
       btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
     }
 
-    function goBackToRearrange() { window.location.href = 'camera.html'; }
+    function goBackToRearrange() {
+      window.location.href = 'camera.html';
+    }
     function confirmBack()       { return true; }
     function retakePhotos() {
       sessionStorage.removeItem('photobooth_photos');
@@ -338,7 +414,7 @@
 
       const delBtn = document.createElement('button');
       delBtn.className = 'sticker-del-btn';
-      delBtn.textContent = '✕';
+      delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.75rem;height:.75rem;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
       delBtn.title = 'Remove';
 
       const resizeHandle = document.createElement('div');
