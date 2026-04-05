@@ -1,66 +1,70 @@
-// p-booth Service Worker v1
-const CACHE_NAME = 'pbooth-v1';
-const ASSETS = [
-  './',
-  './index.html',
-  './camera.html',
-  './result.html',
-  './manifest.json',
-  './css/style.css',
-  './js/camera.js',
-  './js/canvas.js',
-  './js/layout.js',
-  './icon-192.svg',
-  './icon-512.svg',
+// p-booth Service Worker v3 — network-first so updates auto-deploy
+// Bump SW_VERSION each push; the SW detects the change and reloads all clients.
+const SW_VERSION = 'pbooth-v3';
+const CACHE_NAME = SW_VERSION;
+
+const SHELL_ASSETS = [
+  './', './index.html', './camera.html', './result.html',
+  './manifest.json', './css/style.css',
+  './js/camera.js', './js/canvas.js', './js/layout.js', './js/icons.js',
+  './icon-192.svg', './icon-512.svg',
 ];
 
-// Install: cache all shell assets
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS))
+      .then(cache => cache.addAll(SHELL_ASSETS))
       .then(() => self.skipWaiting())
   );
 });
 
-// Activate: clean up old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then(clients => clients.forEach(c => c.postMessage({ type: 'SW_UPDATED', version: SW_VERSION })))
   );
 });
 
-// Fetch: cache-first for shell assets, network-first for fonts/external
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Skip non-GET and cross-origin requests (e.g. Google Fonts)
-  if (event.request.method !== 'GET') return;
   if (url.origin !== location.origin) {
-    // For cross-origin (fonts, etc.): network with cache fallback
     event.respondWith(
-      fetch(event.request)
-        .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-          return res;
-        })
-        .catch(() => caches.match(event.request))
+      fetch(event.request).then(res => {
+        caches.open(CACHE_NAME).then(c => c.put(event.request, res.clone()));
+        return res;
+      }).catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // Same-origin: cache-first
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(res => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+  const isHTML = event.request.headers.get('accept')?.includes('text/html')
+              || url.pathname.endsWith('.html') || url.pathname.endsWith('/');
+
+  if (isHTML) {
+    // Network-first for HTML — always get latest
+    event.respondWith(
+      fetch(event.request).then(res => {
+        caches.open(CACHE_NAME).then(c => c.put(event.request, res.clone()));
         return res;
-      });
-    })
-  );
+      }).catch(() => caches.match(event.request))
+    );
+  } else {
+    // Stale-while-revalidate for CSS/JS/assets
+    event.respondWith(
+      caches.open(CACHE_NAME).then(cache =>
+        cache.match(event.request).then(cached => {
+          const fetchPromise = fetch(event.request).then(res => {
+            cache.put(event.request, res.clone());
+            return res;
+          });
+          return cached || fetchPromise;
+        })
+      )
+    );
+  }
 });

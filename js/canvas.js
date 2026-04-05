@@ -191,15 +191,20 @@ async function generateDoubleStrip(photos, layout, stripBg, customText) {
 
   const images = await Promise.all(photos.map(s => s ? loadImage(s) : Promise.resolve(null)));
 
-  for (let s = 0; s < 2; s++) {
-    const ox = OUTER_PAD + s * (SW + STRIP_GAP);  // strip origin includes outer pad
-
-    for (let i = 0; i < ROWS; i++) {
-      const x = ox + d.PAD_X;
-      const y = d.PAD_TOP + i * (d.PHOTO_H + d.PHOTO_GAP);
-      drawPhoto(ctx, images[s * ROWS + i] || null, x, y, d.PHOTO_W, d.PHOTO_H);
+  // Row-major indexing: images[row * 2 + strip] matches the 2-col upload grid UI
+  // Row 0: images[0]=left, images[1]=right
+  // Row 1: images[2]=left, images[3]=right  … etc.
+  for (let i = 0; i < ROWS; i++) {
+    const y = d.PAD_TOP + i * (d.PHOTO_H + d.PHOTO_GAP);
+    for (let s = 0; s < 2; s++) {
+      const ox = OUTER_PAD + s * (SW + STRIP_GAP);
+      const x  = ox + d.PAD_X;
+      drawPhoto(ctx, images[i * 2 + s] || null, x, y, d.PHOTO_W, d.PHOTO_H);
     }
+  }
 
+  for (let s = 0; s < 2; s++) {
+    const ox = OUTER_PAD + s * (SW + STRIP_GAP);
     drawSideText(ctx, 'p-booth', ox + SW - 6, d.PAD_TOP, photoArea, dark);
     drawFooter(ctx, ox, d.PAD_TOP + photoArea, d.FOOTER_H, SW, customText, BG);
   }

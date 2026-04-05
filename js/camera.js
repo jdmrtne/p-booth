@@ -25,6 +25,9 @@ let pauseResolveCallback = null;
 let dragSrcIndex = null;
 let isDragging   = false;
 
+// tap-to-swap state for mobile upload slots
+let tapSelectedUploadIndex = null;
+
 // drag state for rearrange grid
 let rearrangeDragSrc = null;
 
@@ -211,6 +214,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const poseBadge = document.getElementById('poseBadge');
   if (poseBadge)  poseBadge.textContent = `${layoutConfig.shots} shots · ${layoutConfig.kr}`;
 
+  // Sync mobile start card
+  const mobileReadyDesc = document.getElementById('mobileReadyDesc');
+  if (mobileReadyDesc) mobileReadyDesc.textContent = `${layoutConfig.shots} shots — the camera opens fullscreen so you can pose freely.`;
+  const mobilePoseBadgeText = document.getElementById('mobilePoseBadgeText');
+  if (mobilePoseBadgeText) mobilePoseBadgeText.textContent = `${layoutConfig.shots} shots · ${layoutConfig.kr}`;
+
   initCustomizePanel();
   buildThumbnailGrid();
   startBtn?.addEventListener('click', beginSession);
@@ -373,6 +382,27 @@ function buildThumbnailGrid() {
 }
 
 // ─── UPLOAD MODE ──────────────────────────────────────────────────
+function isTouchDevice() {
+  return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900;
+}
+
+function setTapSelectedUpload(index) {
+  tapSelectedUploadIndex = index;
+  document.querySelectorAll('.upload-slot').forEach((slot, i) => {
+    slot.classList.toggle('tap-selected', i === index);
+  });
+  const hint = document.getElementById('reorderHint');
+  if (hint) {
+    if (index !== null) {
+      hint.textContent = '✓ Now tap another photo to swap positions';
+      hint.classList.add('visible', 'tap-active');
+    } else {
+      hint.textContent = '↕ Tap a photo to select it, then tap another to swap';
+      hint.classList.remove('tap-active');
+    }
+  }
+}
+
 function buildUploadSlots() {
   const grid = document.getElementById('uploadSlotsGrid');
   const uploadTitle    = document.getElementById('uploadTitle');
@@ -382,192 +412,149 @@ function buildUploadSlots() {
   if (uploadSubtitle) uploadSubtitle.textContent = `Tap each slot to choose a photo (${layoutConfig.shots} needed)`;
 
   uploadedPhotos = new Array(layoutConfig.shots).fill(null);
-  let cols = 1;
-  if (layoutConfig.type === 'grid2x2') cols = 2;
-  else if (layoutConfig.type === 'doublestrip') cols = 4;
-  else if (layoutConfig.shots > 4) cols = 2;
-  grid.style.gridTemplateColumns = `repeat(${Math.min(cols,4)}, 1fr)`;
+  tapSelectedUploadIndex = null;
+
+  const cols = layoutConfig.cols || 1;
+  const rows = layoutConfig.rows || layoutConfig.shots;
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
+  grid.dataset.cols = cols;
+  grid.dataset.rows = rows;
+  grid.dataset.layoutType = layoutConfig.type;
   grid.innerHTML = '';
+
+  const touchMode = isTouchDevice();
 
   for (let i = 0; i < layoutConfig.shots; i++) {
     const slot = document.createElement('div');
     slot.className     = 'upload-slot';
     slot.id            = `upload-slot-${i}`;
     slot.dataset.index = i;
-    slot.draggable     = true;
-    slot.innerHTML = `
-      <div class="drag-handle" style="pointer-events:auto;cursor:grab;touch-action:none;">⠿</div>
-      <div class="touch-handle" style="display:none;">⠿</div>
-      <div class="upload-slot-placeholder" id="upload-placeholder-${i}">
-        <span class="upload-slot-icon">+</span>
-        <span class="upload-slot-num">Photo ${i+1}</span>
-      </div>
-      <img class="upload-slot-img" id="upload-img-${i}" src="" alt="Photo ${i+1}" style="display:none;">
-      <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.8rem;height:.8rem;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      <input type="file" accept="image/*" capture="environment" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
-    `;
-    // Click → file picker (works on both desktop and mobile)
-    slot.addEventListener('click', e => {
-      if (!e.target.closest('.upload-slot-remove') && !isDragging) triggerSingleUpload(i);
-    });
 
-    // ── Desktop drag-and-drop reorder ──
-    slot.addEventListener('dragstart', e => {
-      if (uploadedPhotos[i] === null) { e.preventDefault(); return; }
-      dragSrcIndex = i; isDragging = true;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', String(i));
-      setTimeout(() => slot.classList.add('dragging'), 0);
-    });
-    slot.addEventListener('dragend', () => {
-      slot.classList.remove('dragging');
-      document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
-      setTimeout(() => { isDragging = false; }, 50);
-    });
-    slot.addEventListener('dragover', e => {
-      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-      if (parseInt(slot.dataset.index) !== dragSrcIndex) slot.classList.add('drag-over');
-    });
-    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-    slot.addEventListener('drop', e => {
-      e.preventDefault(); slot.classList.remove('drag-over');
-      const toIndex = parseInt(slot.dataset.index);
-      if (dragSrcIndex !== null && dragSrcIndex !== toIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
-      dragSrcIndex = null;
-    });
-
-    // ── Touch drag reorder via drag handle (mobile) ──
-    // Non-passive touchstart on the handle calls preventDefault() BEFORE
-    // the browser locks in scroll mode, so touchmove stays cancelable.
-    const dragHandleEl = slot.querySelector('.drag-handle');
-    if (dragHandleEl) {
-      let hdlDragging = false;
-
-      dragHandleEl.addEventListener('touchstart', e => {
-        if (uploadedPhotos[i] === null) return;
-        e.preventDefault();   // blocks scroll lock — MUST be non-passive
-        e.stopPropagation();
-        hdlDragging  = true;
-        isDragging   = true;
-        dragSrcIndex = i;
-        slot.classList.add('dragging');
-        if (navigator.vibrate) navigator.vibrate(25);
-      }, { passive: false });
-
-      dragHandleEl.addEventListener('touchmove', e => {
-        if (!hdlDragging) return;
-        e.preventDefault();   // keeps page from scrolling while dragging
-        const touch = e.touches[0];
-        const el = document.elementFromPoint(touch.clientX, touch.clientY);
-        const targetSlot = el?.closest('.upload-slot');
-        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
-        if (targetSlot && parseInt(targetSlot.dataset.index) !== dragSrcIndex) {
-          targetSlot.classList.add('drag-over');
-        }
-      }, { passive: false });
-
-      dragHandleEl.addEventListener('touchend', e => {
-        if (!hdlDragging) return;
-        const touch = e.changedTouches[0];
-        const el = document.elementFromPoint(touch.clientX, touch.clientY);
-        const targetSlot = el?.closest('.upload-slot');
-        if (targetSlot) {
-          const toIndex = parseInt(targetSlot.dataset.index);
-          if (toIndex !== dragSrcIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
-        }
-        slot.classList.remove('dragging');
-        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
-        hdlDragging = false;
-        setTimeout(() => { isDragging = false; dragSrcIndex = null; }, 80);
-      }, { passive: true });
-
-      dragHandleEl.addEventListener('touchcancel', () => {
-        slot.classList.remove('dragging');
-        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
-        hdlDragging = false; isDragging = false; dragSrcIndex = null;
-      }, { passive: true });
+    if (!touchMode) {
+      // Desktop: drag-and-drop with handle
+      slot.draggable = true;
+      slot.innerHTML = `
+        <div class="drag-handle" style="pointer-events:auto;cursor:grab;touch-action:none;">⠿</div>
+        <div class="upload-slot-placeholder" id="upload-placeholder-${i}">
+          <span class="upload-slot-icon">+</span>
+          <span class="upload-slot-num">Photo ${i+1}</span>
+        </div>
+        <img class="upload-slot-img" id="upload-img-${i}" src="" alt="Photo ${i+1}" style="display:none;">
+        <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.8rem;height:.8rem;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <input type="file" accept="image/*" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
+      `;
+    } else {
+      // Mobile: tap-to-select-swap, order badge, no drag handle
+      slot.innerHTML = `
+        <div class="upload-slot-placeholder" id="upload-placeholder-${i}">
+          <span class="upload-slot-icon">+</span>
+          <span class="upload-slot-num">Photo ${i+1}</span>
+        </div>
+        <img class="upload-slot-img" id="upload-img-${i}" src="" alt="Photo ${i+1}" style="display:none;">
+        <div class="upload-slot-order-badge" id="upload-badge-${i}">${i+1}</div>
+        <button class="upload-slot-remove" id="upload-remove-${i}" style="display:none;" onclick="removeUploadedPhoto(${i},event)" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:.8rem;height:.8rem;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <input type="file" accept="image/*" capture="environment" style="display:none;" id="upload-file-${i}" onchange="handleSingleUpload(event,${i})">
+      `;
     }
 
-    // ── FIX: Slot-level touch drag fallback (mobile) ──
-    // On iOS, -webkit-overflow-scrolling:touch on the parent container can swallow
-    // touch events before the handle's preventDefault() fires, making handle-based
-    // drag unreliable.  We attach a secondary long-press-to-drag on the slot itself
-    // so users can initiate a drag from anywhere on a filled slot (not just the handle).
-    // A 180ms hold distinguishes drag-intent from a tap (file-picker).
-    {
-      let slotLongPressTimer = null;
-      let slotTouchActive    = false;
-      let slotTchX = 0, slotTchY = 0;
-      let slotHdlDragging    = false;
+    slot.addEventListener('click', e => {
+      if (e.target.closest('.upload-slot-remove')) return;
 
-      slot.addEventListener('touchstart', e => {
-        // Only activate on filled slots; ignore touches on the remove button or handle
-        if (uploadedPhotos[i] === null) return;
-        if (e.target.closest('.upload-slot-remove,.drag-handle')) return;
-        slotTchX = e.touches[0].clientX;
-        slotTchY = e.touches[0].clientY;
-        slotTouchActive = true;
-        slotHdlDragging = false;
+      if (touchMode && uploadedPhotos[i] !== null) {
+        // Mobile tap-to-swap flow
+        if (tapSelectedUploadIndex === null) {
+          setTapSelectedUpload(i);
+        } else if (tapSelectedUploadIndex === i) {
+          setTapSelectedUpload(null); // deselect
+        } else {
+          swapUploadedPhotos(tapSelectedUploadIndex, i);
+          setTapSelectedUpload(null);
+          if (navigator.vibrate) navigator.vibrate(18);
+        }
+        return;
+      }
 
-        slotLongPressTimer = setTimeout(() => {
-          if (!slotTouchActive) return;
-          // Commit to drag after hold threshold
-          slotHdlDragging = true;
-          isDragging      = true;
-          dragSrcIndex    = i;
+      if (!isDragging) triggerSingleUpload(i);
+    });
+
+    if (!touchMode) {
+      // Desktop drag-and-drop
+      slot.addEventListener('dragstart', e => {
+        if (uploadedPhotos[i] === null) { e.preventDefault(); return; }
+        dragSrcIndex = i; isDragging = true;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(i));
+        setTimeout(() => slot.classList.add('dragging'), 0);
+      });
+      slot.addEventListener('dragend', () => {
+        slot.classList.remove('dragging');
+        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+        setTimeout(() => { isDragging = false; }, 50);
+      });
+      slot.addEventListener('dragover', e => {
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        if (parseInt(slot.dataset.index) !== dragSrcIndex) slot.classList.add('drag-over');
+      });
+      slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+      slot.addEventListener('drop', e => {
+        e.preventDefault(); slot.classList.remove('drag-over');
+        const toIndex = parseInt(slot.dataset.index);
+        if (dragSrcIndex !== null && dragSrcIndex !== toIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
+        dragSrcIndex = null;
+      });
+
+      // Desktop drag handle touch support (for hybrid devices)
+      const dragHandleEl = slot.querySelector('.drag-handle');
+      if (dragHandleEl) {
+        let hdlDragging = false;
+        dragHandleEl.addEventListener('touchstart', e => {
+          if (uploadedPhotos[i] === null) return;
+          e.preventDefault(); e.stopPropagation();
+          hdlDragging = true; isDragging = true; dragSrcIndex = i;
           slot.classList.add('dragging');
-          if (navigator.vibrate) navigator.vibrate(30);
-        }, 180);
-      }, { passive: true });
-
-      slot.addEventListener('touchmove', e => {
-        if (!slotTouchActive) return;
-        const dx = Math.abs(e.touches[0].clientX - slotTchX);
-        const dy = Math.abs(e.touches[0].clientY - slotTchY);
-        // If moved >8px before the timer fires, cancel long-press (user is scrolling)
-        if (!slotHdlDragging && (dx > 8 || dy > 8)) {
-          clearTimeout(slotLongPressTimer);
-          slotTouchActive = false;
-          return;
-        }
-        if (!slotHdlDragging) return;
-        e.preventDefault();
-        const touch = e.touches[0];
-        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        const targetSlot = target?.closest('.upload-slot');
-        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
-        if (targetSlot && parseInt(targetSlot.dataset.index) !== dragSrcIndex) {
-          targetSlot.classList.add('drag-over');
-        }
-      }, { passive: false });
-
-      slot.addEventListener('touchend', e => {
-        clearTimeout(slotLongPressTimer);
-        slotTouchActive = false;
-        if (!slotHdlDragging) return;
-        const touch = e.changedTouches[0];
-        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        const targetSlot = target?.closest('.upload-slot');
-        if (targetSlot) {
-          const toIndex = parseInt(targetSlot.dataset.index);
-          if (toIndex !== dragSrcIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
-        }
-        slot.classList.remove('dragging');
-        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
-        slotHdlDragging = false;
-        setTimeout(() => { isDragging = false; dragSrcIndex = null; }, 80);
-      }, { passive: true });
-
-      slot.addEventListener('touchcancel', () => {
-        clearTimeout(slotLongPressTimer);
-        slotTouchActive = false;
-        slot.classList.remove('dragging');
-        document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
-        slotHdlDragging = false; isDragging = false; dragSrcIndex = null;
-      }, { passive: true });
+          if (navigator.vibrate) navigator.vibrate(25);
+        }, { passive: false });
+        dragHandleEl.addEventListener('touchmove', e => {
+          if (!hdlDragging) return;
+          e.preventDefault();
+          const touch = e.touches[0];
+          const el = document.elementFromPoint(touch.clientX, touch.clientY);
+          const targetSlot = el?.closest('.upload-slot');
+          document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+          if (targetSlot && parseInt(targetSlot.dataset.index) !== dragSrcIndex) targetSlot.classList.add('drag-over');
+        }, { passive: false });
+        dragHandleEl.addEventListener('touchend', e => {
+          if (!hdlDragging) return;
+          const touch = e.changedTouches[0];
+          const el = document.elementFromPoint(touch.clientX, touch.clientY);
+          const targetSlot = el?.closest('.upload-slot');
+          if (targetSlot) {
+            const toIndex = parseInt(targetSlot.dataset.index);
+            if (toIndex !== dragSrcIndex) swapUploadedPhotos(dragSrcIndex, toIndex);
+          }
+          slot.classList.remove('dragging');
+          document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+          hdlDragging = false;
+          setTimeout(() => { isDragging = false; dragSrcIndex = null; }, 80);
+        }, { passive: true });
+        dragHandleEl.addEventListener('touchcancel', () => {
+          slot.classList.remove('dragging');
+          document.querySelectorAll('.upload-slot').forEach(s => s.classList.remove('drag-over'));
+          hdlDragging = false; isDragging = false; dragSrcIndex = null;
+        }, { passive: true });
+      }
     }
 
     grid.appendChild(slot);
+  }
+
+  // Update hint text based on mode
+  const hint = document.getElementById('reorderHint');
+  if (hint) {
+    hint.textContent = touchMode
+      ? '↕ Tap a photo to select it, then tap another to swap'
+      : '⟺ Drag to rearrange · Use the ⠿ handle to drag';
   }
 }
 
@@ -583,12 +570,14 @@ function renderUploadSlot(index) {
   const placeholder = document.getElementById(`upload-placeholder-${index}`);
   const img         = document.getElementById(`upload-img-${index}`);
   const removeBtn   = document.getElementById(`upload-remove-${index}`);
+  const badge       = document.getElementById(`upload-badge-${index}`);
   if (!slot) return;
   if (dataUrl) {
     slot.classList.add('filled');
     if (placeholder) placeholder.style.display = 'none';
     if (img)         { img.src = dataUrl; img.style.display = 'block'; }
     if (removeBtn)   removeBtn.style.display = 'flex';
+    if (badge)       badge.textContent = index + 1;
   } else {
     slot.classList.remove('filled');
     if (placeholder) placeholder.style.display = '';
@@ -850,11 +839,20 @@ function buildRearrangeGrid() {
   const grid = document.getElementById('rearrangeGrid');
   if (!grid) return;
 
-  const cols = (layoutConfig.type === 'doublestrip') ? 4
-             : (layoutConfig.shots <= 2)             ? 2
-             :                                          2;
-  grid.style.gridTemplateColumns = `repeat(${Math.min(cols, 4)}, 1fr)`;
+  const cols = layoutConfig.cols || 2;
+  const rows = layoutConfig.rows || layoutConfig.shots;
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
+  grid.dataset.cols = cols;
+  grid.dataset.rows = rows;
   grid.innerHTML = '';
+
+  // Update hint
+  const hint = document.getElementById('rearrangeTapHint');
+  if (hint) {
+    hint.textContent = '⠿ Hold & drag a photo to reorder · Long-press on mobile';
+    hint.classList.remove('tap-active');
+  }
 
   capturedPhotos.forEach((photo, i) => {
     const slot = document.createElement('div');
@@ -866,9 +864,30 @@ function buildRearrangeGrid() {
       const img = document.createElement('img');
       img.src = photo; img.alt = `Shot ${i+1}`;
       slot.appendChild(img);
+
+      // Drag handle — shown on all devices, always visible on mobile
       const handle = document.createElement('div');
       handle.className = 'rearrange-drag-handle'; handle.innerHTML = '⠿';
       slot.appendChild(handle);
+
+      // Number badge bottom-left
+      const numBadge = document.createElement('div');
+      numBadge.className = 'rearrange-slot-num';
+      numBadge.textContent = i + 1;
+      slot.appendChild(numBadge);
+
+      // Remove button top-right
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'rearrange-slot-remove';
+      removeBtn.innerHTML = '✕';
+      removeBtn.title = 'Remove photo';
+      removeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        capturedPhotos[i] = null;
+        buildRearrangeGrid();
+      });
+      slot.appendChild(removeBtn);
+
     } else {
       const empty = document.createElement('div');
       empty.className = 'rearrange-slot-empty';
@@ -876,15 +895,11 @@ function buildRearrangeGrid() {
       slot.appendChild(empty);
     }
 
-    const numBadge = document.createElement('div');
-    numBadge.className = 'rearrange-slot-num';
-    numBadge.textContent = i + 1;
-    slot.appendChild(numBadge);
-
     grid.appendChild(slot);
 
     if (!photo) return;
 
+    // ── Desktop: HTML5 drag-and-drop ──
     slot.addEventListener('dragstart', e => {
       rearrangeDragSrc = i;
       e.dataTransfer.effectAllowed = 'move';
@@ -907,95 +922,121 @@ function buildRearrangeGrid() {
       rearrangeDragSrc = null;
     });
 
-    // Touch drag (mobile)
-    let tSrcIdx = null, tStartX, tStartY, tDragging = false;
-    slot.addEventListener('touchstart', e => {
-      if (!photo) return;
-      tSrcIdx = i; tDragging = false;
-      tStartX = e.touches[0].clientX; tStartY = e.touches[0].clientY;
-    }, { passive: true });
-    slot.addEventListener('touchmove', e => {
-      if (tSrcIdx === null) return;
-      const dx = Math.abs(e.touches[0].clientX - tStartX);
-      const dy = Math.abs(e.touches[0].clientY - tStartY);
-      if (dx > 8 || dy > 8) {
-        e.preventDefault(); tDragging = true;
-        slot.classList.add('rearrange-dragging');
-        const touch = e.touches[0];
-        grid.querySelectorAll('.rearrange-slot').forEach(s => {
-          const r = s.getBoundingClientRect();
-          const over = touch.clientX >= r.left && touch.clientX <= r.right
-                    && touch.clientY >= r.top  && touch.clientY <= r.bottom
-                    && parseInt(s.dataset.index) !== tSrcIdx;
-          s.classList.toggle('rearrange-drag-over', over);
-        });
-      }
-    }, { passive: false });
-    slot.addEventListener('touchend', e => {
-      slot.classList.remove('rearrange-dragging');
-      const touch = e.changedTouches[0]; let targetIdx = null;
-      grid.querySelectorAll('.rearrange-slot').forEach(s => {
-        s.classList.remove('rearrange-drag-over');
-        if (!tDragging) return;
-        const r = s.getBoundingClientRect();
-        if (touch.clientX >= r.left && touch.clientX <= r.right
-         && touch.clientY >= r.top  && touch.clientY <= r.bottom) targetIdx = parseInt(s.dataset.index);
-      });
-      if (tDragging && targetIdx !== null && targetIdx !== tSrcIdx) swapCapturedPhotos(tSrcIdx, targetIdx);
-      tSrcIdx = null; tDragging = false;
-    });
-
-    // ── Touch drag via handle (mobile) — prevents scroll from starting ──
-    const rearrangeHandleEl = slot.querySelector('.rearrange-drag-handle');
-    if (rearrangeHandleEl) {
+    // ── Mobile: handle-initiated touch drag (non-passive preventDefault blocks scroll) ──
+    const handleEl = slot.querySelector('.rearrange-drag-handle');
+    if (handleEl) {
       let hdlDragging = false;
 
-      rearrangeHandleEl.addEventListener('touchstart', e => {
+      handleEl.addEventListener('touchstart', e => {
         if (!photo) return;
-        e.preventDefault();   // blocks scroll — MUST be non-passive
+        e.preventDefault();     // MUST be non-passive — blocks scroll before browser locks it in
         e.stopPropagation();
-        hdlDragging  = true;
-        tSrcIdx      = i;
-        tDragging    = false;
-        tStartX      = e.touches[0].clientX;
-        tStartY      = e.touches[0].clientY;
+        hdlDragging      = true;
+        rearrangeDragSrc = i;
         slot.classList.add('rearrange-dragging');
         if (navigator.vibrate) navigator.vibrate(25);
       }, { passive: false });
 
-      rearrangeHandleEl.addEventListener('touchmove', e => {
+      handleEl.addEventListener('touchmove', e => {
         if (!hdlDragging) return;
         e.preventDefault();
-        tDragging = true;
         const touch = e.touches[0];
-        grid.querySelectorAll('.rearrange-slot').forEach(s => {
-          const r = s.getBoundingClientRect();
-          const over = touch.clientX >= r.left && touch.clientX <= r.right
-                    && touch.clientY >= r.top  && touch.clientY <= r.bottom
-                    && parseInt(s.dataset.index) !== tSrcIdx;
-          s.classList.toggle('rearrange-drag-over', over);
-        });
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = el?.closest('.rearrange-slot');
+        grid.querySelectorAll('.rearrange-slot').forEach(s => s.classList.remove('rearrange-drag-over'));
+        if (targetSlot && parseInt(targetSlot.dataset.index) !== rearrangeDragSrc) {
+          targetSlot.classList.add('rearrange-drag-over');
+        }
       }, { passive: false });
 
-      rearrangeHandleEl.addEventListener('touchend', e => {
+      handleEl.addEventListener('touchend', e => {
         if (!hdlDragging) return;
         slot.classList.remove('rearrange-dragging');
         const touch = e.changedTouches[0];
-        let targetIdx = null;
-        grid.querySelectorAll('.rearrange-slot').forEach(s => {
-          s.classList.remove('rearrange-drag-over');
-          const r = s.getBoundingClientRect();
-          if (touch.clientX >= r.left && touch.clientX <= r.right
-           && touch.clientY >= r.top  && touch.clientY <= r.bottom) targetIdx = parseInt(s.dataset.index);
-        });
-        if (targetIdx !== null && targetIdx !== tSrcIdx) swapCapturedPhotos(tSrcIdx, targetIdx);
-        hdlDragging = false; tSrcIdx = null; tDragging = false;
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = el?.closest('.rearrange-slot');
+        grid.querySelectorAll('.rearrange-slot').forEach(s => s.classList.remove('rearrange-drag-over'));
+        if (targetSlot) {
+          const toIdx = parseInt(targetSlot.dataset.index);
+          if (toIdx !== rearrangeDragSrc) swapCapturedPhotos(rearrangeDragSrc, toIdx);
+        }
+        hdlDragging = false; rearrangeDragSrc = null;
       }, { passive: true });
 
-      rearrangeHandleEl.addEventListener('touchcancel', () => {
+      handleEl.addEventListener('touchcancel', () => {
         slot.classList.remove('rearrange-dragging');
         grid.querySelectorAll('.rearrange-slot').forEach(s => s.classList.remove('rearrange-drag-over'));
-        hdlDragging = false; tSrcIdx = null; tDragging = false;
+        hdlDragging = false; rearrangeDragSrc = null;
+      }, { passive: true });
+    }
+
+    // ── Mobile: long-press fallback on the whole slot (180ms) ──
+    // Catches cases where the handle touch is eaten by iOS scroll momentum.
+    {
+      let lpTimer   = null;
+      let lpActive  = false;
+      let lpDragging = false;
+      let lpStartX = 0, lpStartY = 0;
+
+      slot.addEventListener('touchstart', e => {
+        if (e.target.closest('.rearrange-slot-remove, .rearrange-drag-handle')) return;
+        lpStartX = e.touches[0].clientX;
+        lpStartY = e.touches[0].clientY;
+        lpActive  = true;
+        lpDragging = false;
+        lpTimer = setTimeout(() => {
+          if (!lpActive) return;
+          lpDragging      = true;
+          rearrangeDragSrc = i;
+          slot.classList.add('rearrange-dragging');
+          if (navigator.vibrate) navigator.vibrate(30);
+        }, 180);
+      }, { passive: true });
+
+      slot.addEventListener('touchmove', e => {
+        if (!lpActive) return;
+        const dx = Math.abs(e.touches[0].clientX - lpStartX);
+        const dy = Math.abs(e.touches[0].clientY - lpStartY);
+        if (!lpDragging && (dx > 8 || dy > 8)) {
+          // Moved before long-press fired — user is scrolling, cancel
+          clearTimeout(lpTimer);
+          lpActive = false;
+          return;
+        }
+        if (!lpDragging) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = el?.closest('.rearrange-slot');
+        grid.querySelectorAll('.rearrange-slot').forEach(s => s.classList.remove('rearrange-drag-over'));
+        if (targetSlot && parseInt(targetSlot.dataset.index) !== rearrangeDragSrc) {
+          targetSlot.classList.add('rearrange-drag-over');
+        }
+      }, { passive: false });
+
+      slot.addEventListener('touchend', e => {
+        clearTimeout(lpTimer);
+        lpActive = false;
+        if (!lpDragging) return;
+        slot.classList.remove('rearrange-dragging');
+        const touch = e.changedTouches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetSlot = el?.closest('.rearrange-slot');
+        grid.querySelectorAll('.rearrange-slot').forEach(s => s.classList.remove('rearrange-drag-over'));
+        if (targetSlot) {
+          const toIdx = parseInt(targetSlot.dataset.index);
+          if (toIdx !== rearrangeDragSrc) swapCapturedPhotos(rearrangeDragSrc, toIdx);
+        }
+        lpDragging = false;
+        setTimeout(() => { rearrangeDragSrc = null; }, 80);
+      }, { passive: true });
+
+      slot.addEventListener('touchcancel', () => {
+        clearTimeout(lpTimer);
+        lpActive = false;
+        slot.classList.remove('rearrange-dragging');
+        grid.querySelectorAll('.rearrange-slot').forEach(s => s.classList.remove('rearrange-drag-over'));
+        lpDragging = false; rearrangeDragSrc = null;
       }, { passive: true });
     }
   });

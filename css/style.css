@@ -285,8 +285,8 @@ body::after {
 
 /* ─── MODE TOGGLE ─── */
 .mode-toggle-wrap {
-  display: flex; justify-content: center;
-  padding: 10px 0 0; position: relative; z-index: 1;
+  display: flex; justify-content: center; align-items: center; gap: 6px;
+  padding: 10px 0 8px; position: relative; z-index: 1;
   flex-shrink: 0;
 }
 .mode-toggle {
@@ -294,6 +294,7 @@ body::after {
   background: var(--surface); border: 2px solid var(--border);
   border-radius: 50px; padding: 4px;
   box-shadow: var(--shadow-sm);
+  width: fit-content;   /* ← only as wide as the two buttons need */
 }
 .mode-btn {
   font-family: var(--font-ui); font-size: 0.78rem; font-weight: 800;
@@ -586,10 +587,16 @@ canvas#snapshot {
   border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .rearrange-header-row {
   display: flex; align-items: center; gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 .rearrange-header-icon { font-size: 2rem; flex-shrink: 0; }
 .rearrange-header-row h3 { font-size: 1rem; font-weight: 900; color: var(--text); }
@@ -598,27 +605,29 @@ canvas#snapshot {
 .rearrange-grid {
   display: grid;
   gap: 10px;
-  margin-bottom: 14px;
+  flex: 1;
+  min-height: 0;
+  align-content: stretch;
 }
 .rearrange-slot {
-  aspect-ratio: 4/3;
   border-radius: var(--radius);
-  border: 2px dashed rgba(168,85,247,.2);
+  border: 2px dashed rgba(168,85,247,.25);
   background: linear-gradient(135deg, #fef0f6, #f4efff);
   position: relative; overflow: hidden;
   cursor: grab;
   transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  min-height: 0;
 }
 .rearrange-slot.filled {
   border-style: solid;
-  border-color: rgba(168,85,247,.25);
+  border-color: var(--pink);
   cursor: grab;
 }
 .rearrange-slot.filled:hover {
   border-color: var(--pink);
-  transform: scale(1.03);
+  transform: scale(1.01);
   box-shadow: 0 4px 20px rgba(255,107,157,.2);
 }
 .rearrange-slot img {
@@ -627,25 +636,44 @@ canvas#snapshot {
   pointer-events: none;
 }
 .rearrange-slot-num {
-  position: absolute; bottom: 5px; right: 7px;
-  font-size: 0.7rem; font-weight: 900; color: rgba(255,255,255,.9);
-  background: rgba(0,0,0,.4); padding: 2px 6px; border-radius: 6px;
-  letter-spacing: 0.02em; line-height: 1.4;
+  position: absolute; bottom: 4px; left: 4px;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  font-size: 0.65rem; font-weight: 900; color: rgba(255,255,255,.95);
+  background: rgba(0,0,0,.5); border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
   pointer-events: none;
 }
+.rearrange-slot-remove {
+  position: absolute; top: 6px; right: 6px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255,50,80,.85); border: none;
+  color: white; font-size: 0.7rem; font-weight: 900;
+  cursor: pointer; display: none; align-items: center; justify-content: center;
+  z-index: 5; transition: background var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.rearrange-slot.filled .rearrange-slot-remove { display: flex; }
+.rearrange-slot-remove:hover { background: rgba(220,20,50,1); }
 .rearrange-drag-handle {
-  position: absolute; top: 6px; left: 6px;
-  width: 22px; height: 22px; border-radius: 6px;
-  background: rgba(0,0,0,.45); color: rgba(255,255,255,.85);
+  position: absolute; top: 4px; left: 4px;
+  width: 22px; height: 22px; border-radius: 5px;
+  background: rgba(0,0,0,.45); color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; cursor: grab;
-  opacity: 0; transition: opacity .15s;
+  opacity: 1;
   pointer-events: auto;
   touch-action: none;
   user-select: none;
   z-index: 10;
 }
 .rearrange-slot.filled:hover .rearrange-drag-handle { opacity: 1; }
+@media (pointer: coarse) {
+  .rearrange-drag-handle {
+    width: 32px; height: 32px; font-size: 16px;
+    background: rgba(255,107,157,.85);
+    border-radius: 6px; top: 3px; left: 3px;
+  }
+}
 .rearrange-slot.rearrange-dragging {
   opacity: .45; transform: scale(.95);
   border-style: dashed !important; border-color: var(--pink) !important;
@@ -657,6 +685,7 @@ canvas#snapshot {
   transform: scale(1.05);
   box-shadow: 0 0 0 3px rgba(255,107,157,.3);
 }
+/* Mobile long-press drag active state */
 .rearrange-slot-empty {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
@@ -671,10 +700,17 @@ canvas#snapshot {
 .rearrange-drag-hint {
   text-align: center; font-size: 0.63rem; font-weight: 700;
   color: var(--text-light); letter-spacing: 0.04em;
-  padding: 2px 0 12px;
+  padding: 4px 0 6px;
+  flex-shrink: 0;
+  transition: color .2s;
+}
+.rearrange-drag-hint.tap-active {
+  color: var(--pink);
+  font-weight: 800;
 }
 .rearrange-actions {
   display: flex; gap: 10px; align-items: center;
+  flex-shrink: 0;
 }
 .rearrange-actions .btn-secondary { flex-shrink: 0; }
 .rearrange-actions .btn-primary   { flex: 1; }
@@ -796,7 +832,6 @@ canvas#snapshot {
   .upload-mode-container { padding: 16px; }
 
   .rearrange-container { padding: 16px; }
-  .rearrange-grid { grid-template-columns: repeat(2, 1fr) !important; }
   .rearrange-actions { flex-direction: column; }
   .rearrange-actions .btn { width: 100%; }
 
@@ -827,8 +862,6 @@ canvas#snapshot {
   .upload-slot:hover { transform: none; border-color: rgba(168,85,247,.25); }
   .upload-slot:active { transform: scale(0.98); border-color: var(--pink); }
   .rearrange-slot.filled:hover { transform: none; box-shadow: none; }
-  .rearrange-slot.filled:hover .rearrange-drag-handle { opacity: 1; }
-  .rearrange-slot.filled .rearrange-drag-handle { opacity: 1; width: 32px; height: 32px; font-size: 16px; background: rgba(255,107,157,.85); border-radius: 6px; top: 3px; left: 3px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -836,10 +869,14 @@ canvas#snapshot {
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ─── Upload & Rearrange: always scrollable, nothing gets clipped ── */
-#uploadModeView,
-#rearrangeView {
+#uploadModeView {
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
+}
+#rearrangeView {
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Camera mode: flex column so viewfinder + controls stay inside bounds */
@@ -976,7 +1013,6 @@ canvas#snapshot {
 /* ─── Mobile: make upload & rearrange modes fill screen ─────────── */
 @media (max-width: 768px) {
   #uploadModeView  { padding-bottom: 24px; }
-  #rearrangeView   { padding-bottom: 24px; }
 
   /* Pause button: shorter label on very small screens */
   #pauseBtn { font-size: 0; width: 48px; justify-content: center; }
@@ -984,7 +1020,6 @@ canvas#snapshot {
   #pauseBtn.is-paused::before { content: '▶'; }
 
   .upload-mode-container { padding-bottom: 32px; }
-  .rearrange-container   { padding-bottom: 32px; }
 }
 
 /* ─── Shot-progress bar: always visible above controls ─────────── */
@@ -2021,7 +2056,7 @@ canvas#snapshot {
 
   /* ── Rearrange ── */
   .rearrange-container { padding: 10px 8px !important; }
-  .rearrange-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .rearrange-grid { gap: 8px !important; }
   .rearrange-slot img { object-fit: cover !important; }
   .rearrange-actions { gap: 8px !important; padding-top: 10px !important; }
   .rearrange-actions .btn { font-size: 0.78rem !important; padding: 11px 14px !important; }
@@ -2205,14 +2240,14 @@ canvas#snapshot {
   body.camera-page .top-bar-steps .step-num { width: 18px !important; height: 18px !important; }
 
   body.camera-page .mode-toggle-wrap {
-    padding: 4px 8px 0 !important;
+    padding: 10px 8px 8px !important;
     flex-shrink: 0;
+    justify-content: center;
   }
-  body.camera-page .mode-toggle { width: 100%; }
+  body.camera-page .mode-toggle { width: fit-content; }
   body.camera-page .mode-btn {
-    flex: 1;
-    padding: 5px 8px !important;
-    font-size: 0.64rem !important;
+    padding: 8px 18px !important;
+    font-size: 0.75rem !important;
   }
 
   body.camera-page main {
@@ -2339,8 +2374,8 @@ canvas#snapshot {
   body.camera-page .upload-header h3 { font-size: 0.82rem !important; }
   body.camera-page .upload-header p  { font-size: 0.62rem !important; }
   body.camera-page .upload-slots-grid {
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 5px !important;
+    /* JS controls cols/rows — desktop override removed so strip layout is respected */
+    gap: 4px !important;
   }
   body.camera-page .upload-slot { min-height: 60px !important; font-size: 0.62rem !important; }
   body.camera-page .upload-bulk-wrap { margin-bottom: 6px !important; }
@@ -2350,8 +2385,9 @@ canvas#snapshot {
   /* Rearrange mode: compact grid */
   body.camera-page #rearrangeView {
     flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
   body.camera-page .rearrange-container { padding: 6px !important; }
   body.camera-page .rearrange-header-row { margin-bottom: 8px !important; gap: 8px !important; }
@@ -2359,7 +2395,6 @@ canvas#snapshot {
   body.camera-page .rearrange-container h3 { font-size: 0.82rem !important; }
   body.camera-page .rearrange-container p  { font-size: 0.62rem !important; }
   body.camera-page .rearrange-grid {
-    grid-template-columns: repeat(4, 1fr) !important;
     gap: 6px !important;
   }
   body.camera-page .rearrange-slot img { object-fit: cover !important; }
@@ -2715,12 +2750,15 @@ canvas#snapshot {
     flex: none !important;
   }
 
-  /* Upload / rearrange: always scrollable */
-  #uploadModeView,
-  #rearrangeView {
+  /* Upload / rearrange: always scrollable for upload, no scroll for rearrange */
+  #uploadModeView {
     overflow-y: auto !important;
     max-height: calc(100vh - 110px) !important;
     -webkit-overflow-scrolling: touch !important;
+  }
+  #rearrangeView {
+    overflow: hidden !important;
+    max-height: calc(100vh - 110px) !important;
   }
 }
 
@@ -2983,7 +3021,6 @@ canvas#snapshot {
     gap: 10px !important;
   }
   .rearrange-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px !important;
   }
 
@@ -3190,3 +3227,321 @@ canvas#snapshot {
   flex-shrink: 0;
 }
 .ico-badge .ico { width: 1.2rem; height: 1.2rem; }
+
+/* ══════════════════════════════════════════════════════════════════
+   PWA INSTALL BANNER
+   ══════════════════════════════════════════════════════════════════ */
+#pwa-install-banner {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 99990;
+  padding: 0 0 env(safe-area-inset-bottom, 0);
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+}
+#pwa-install-banner.pib-visible {
+  transform: translateY(0);
+  pointer-events: all;
+}
+.pib-inner {
+  display: flex; align-items: center; gap: 12px;
+  background: white;
+  border-top: 1.5px solid var(--border);
+  box-shadow: 0 -4px 24px rgba(168,85,247,.12);
+  padding: 14px 16px;
+  border-radius: 20px 20px 0 0;
+}
+.pib-icon { font-size: 1.6rem; flex-shrink: 0; }
+.pib-text { flex: 1; min-width: 0; }
+.pib-text strong { display: block; font-size: .82rem; font-weight: 800; color: var(--text); }
+.pib-text span   { display: block; font-size: .72rem; color: var(--text-muted); font-weight: 600; }
+.pib-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pib-install {
+  padding: 8px 16px; border-radius: 20px;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  color: white; border: none; font-weight: 800; font-size: .78rem;
+  cursor: pointer; font-family: var(--font-ui);
+  white-space: nowrap;
+}
+.pib-dismiss {
+  width: 30px; height: 30px; border-radius: 50%; border: none;
+  background: var(--pink-dim); color: var(--text-muted);
+  font-size: .8rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
+/* iOS instructions modal */
+.pib-ios-modal {
+  position: fixed; inset: 0; z-index: 99999;
+  background: rgba(10,0,24,.8); backdrop-filter: blur(8px);
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; transition: opacity .3s;
+}
+.pib-ios-modal.visible { opacity: 1; }
+.pib-ios-card {
+  background: white; border-radius: 20px 20px 0 0;
+  padding: 28px 24px calc(28px + env(safe-area-inset-bottom, 0));
+  max-width: 480px; width: 100%;
+}
+.pib-ios-title { font-size: 1.1rem; font-weight: 900; color: var(--text); margin-bottom: 16px; text-align: center; }
+.pib-ios-steps { list-style: decimal; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+.pib-ios-steps li { font-size: .85rem; color: var(--text-muted); font-weight: 600; line-height: 1.5; }
+.pib-ios-share { background: var(--pink-dim); color: var(--pink); padding: 2px 6px; border-radius: 6px; font-weight: 900; }
+.pib-ios-close {
+  margin-top: 22px; width: 100%; padding: 14px;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  color: white; border: none; border-radius: 14px;
+  font-weight: 800; font-size: .9rem; cursor: pointer; font-family: var(--font-ui);
+}
+
+/* SW Update toast */
+#sw-update-toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+  z-index: 99995; opacity: 0; transition: all .4s cubic-bezier(.4,0,.2,1);
+  background: var(--text); color: white;
+  padding: 10px 16px; border-radius: 50px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: .78rem; font-weight: 700; white-space: nowrap;
+  pointer-events: none;
+}
+#sw-update-toast.visible {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+  pointer-events: all;
+}
+#sw-update-toast button {
+  padding: 4px 12px; border-radius: 20px;
+  background: var(--pink); color: white; border: none;
+  font-weight: 800; font-size: .72rem; cursor: pointer; font-family: var(--font-ui);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE CAMERA PAGE — NO PREVIEW
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Hide the live camera viewfinder on mobile — fullscreen overlay handles it */
+  .camera-page .camera-viewfinder {
+    display: none !important;
+  }
+
+  /* Replace viewfinder with a clean start-session card */
+  .camera-page #cameraModeView {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Mobile start card — shown instead of camera preview */
+  .mobile-start-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 32px 24px 24px;
+    text-align: center;
+    background: linear-gradient(160deg, rgba(255,107,157,.06) 0%, rgba(168,85,247,.06) 100%);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin: 12px;
+    flex: 1;
+  }
+
+  /* Shot progress bar — make it visible and well spaced */
+  .camera-page .shot-progress {
+    margin: 8px 12px 4px;
+  }
+
+  /* Status message */
+  .camera-page .status-msg {
+    font-size: .75rem;
+    padding: 0 16px;
+    text-align: center;
+  }
+
+  /* Camera controls row — bigger, full width */
+  .camera-page .camera-controls {
+    padding: 12px;
+    gap: 10px;
+  }
+  .camera-page .camera-controls .btn-lg {
+    min-height: 52px;
+    font-size: .9rem;
+  }
+}
+
+/* Show mobile-start-card only on mobile — see bottom of file */
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE GENERAL LAYOUT CONSISTENCY
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Top bar: keep logo + steps + back visible */
+  .top-bar {
+    padding: 0 12px;
+    height: 48px;
+  }
+  .top-bar-logo { font-size: 1.1rem; }
+  .top-bar-steps { font-size: .62rem; gap: 5px; }
+  .top-bar-steps .divider { width: 12px; }
+  .top-bar-steps .step-num { width: 18px; height: 18px; font-size: .55rem; }
+  .top-bar-back { font-size: .65rem; padding: 5px 8px; }
+
+  /* Mode toggle row */
+  .mode-toggle-wrap { padding: 8px 12px; gap: 6px; }
+  .mode-toggle { border-radius: 12px; }
+  .mode-btn { font-size: .78rem; padding: 10px 12px; min-height: 40px; }
+
+  /* Index page layout cards — single column on very small screens */
+  @media (max-width: 420px) {
+    .layout-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  }
+
+  /* Upload slots grid — 2 columns */
+  .upload-slots-grid { grid-template-columns: 1fr 1fr !important; gap: 12px; }
+  .upload-slot { min-height: 110px; }
+
+  /* Result page: stack vertically */
+  .result-layout { flex-direction: column !important; }
+  .strip-panel { max-height: 60vh; }
+  .result-right-panel { overflow-y: auto; }
+
+  /* Buttons: adequate tap targets */
+  .btn { min-height: 44px; }
+  .btn-lg { min-height: 52px; }
+
+  /* Section header padding on index */
+  .section-head { margin: 16px 0 18px; }
+  .section-head h2 { font-size: 1.2rem; }
+}
+
+/* ── mobile-start-card: hidden on desktop, shown on mobile ── */
+.mobile-start-card { display: none; }
+
+@media (max-width: 768px) {
+  .mobile-start-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 28px 24px 20px;
+    text-align: center;
+    background: linear-gradient(160deg, rgba(255,107,157,.06) 0%, rgba(168,85,247,.06) 100%);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin: 12px;
+    flex: 1;
+  }
+  .mobile-start-card .msc-icon {
+    width: 72px; height: 72px; border-radius: 22px;
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 28px rgba(255,107,157,.35);
+    flex-shrink: 0;
+  }
+  .mobile-start-card .msc-icon svg { width: 2rem; height: 2rem; color: white; }
+  .mobile-start-card h3 { font-size: 1.15rem; font-weight: 900; color: var(--text); margin: 0; }
+  .mobile-start-card p {
+    font-size: .8rem; color: var(--text-muted); font-weight: 600;
+    margin: 0; max-width: 240px; line-height: 1.6;
+  }
+  .mobile-start-card .pose-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--pink-dim); border: 1.5px solid var(--pink-border);
+    color: var(--pink); font-size: .72rem; font-weight: 800;
+    padding: 5px 14px; border-radius: 20px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   UPLOAD VIEW — STRIP-SHAPED LAYOUT (Desktop camera page)
+   Slots arranged exactly like the output strip, fully visible on screen
+   ══════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
+  body.camera-page #uploadModeView {
+    overflow: hidden;       /* everything fits — no scroll needed */
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  body.camera-page .upload-mode-container {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 10px 14px !important;
+    height: 100%;
+    min-height: 0;
+    gap: 8px !important;
+  }
+
+  /* Compact one-line header */
+  body.camera-page .upload-header {
+    flex-shrink: 0;
+    margin-bottom: 0 !important;
+    gap: 10px !important;
+  }
+  body.camera-page .upload-header-icon { font-size: 1.3rem !important; }
+  body.camera-page .upload-header h3   { font-size: 0.82rem !important; }
+  body.camera-page .upload-header p    { font-size: 0.65rem !important; margin-top: 1px !important; }
+
+  /* The strip grid: fill available height, centered horizontally */
+  body.camera-page .upload-slots-grid {
+    flex: 1 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    width: auto !important;
+    margin: 0 auto !important;   /* center in the column */
+    gap: 4px !important;
+
+    /* Strip paper look */
+    background: #fff;
+    border-radius: 10px;
+    padding: 8px;
+    box-shadow: 0 6px 28px rgba(0,0,0,.13), 0 1px 4px rgba(0,0,0,.07);
+    border: 1px solid rgba(0,0,0,.06);
+    box-sizing: border-box;
+  }
+
+  /* Slot: fills its grid cell, no fixed aspect-ratio */
+  body.camera-page .upload-slot {
+    aspect-ratio: unset !important;
+    min-height: unset !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 6px !important;
+    background: linear-gradient(135deg, #fef0f6, #f4efff) !important;
+  }
+
+  /* Slot image fills cell properly */
+  body.camera-page .upload-slot .upload-slot-img {
+    object-fit: cover;
+    width: 100%; height: 100%;
+  }
+
+  /* Strip width: narrow for 1-column strips, wider for 2-column */
+  body.camera-page .upload-slots-grid[data-cols="1"] {
+    width: 210px !important;   /* portrait single-column strip */
+  }
+  body.camera-page .upload-slots-grid[data-cols="2"] {
+    width: 340px !important;   /* wider for 2×2 or double-strip */
+  }
+
+  /* Hint & bulk select: shrink, stay compact */
+  body.camera-page .upload-slot-reorder-hint {
+    flex-shrink: 0;
+    font-size: 0.6rem !important;
+    padding: 0 !important;
+  }
+  body.camera-page .upload-bulk-wrap {
+    flex-shrink: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  body.camera-page #uploadContinueBtn {
+    flex-shrink: 0 !important;
+    margin-top: 0 !important;
+  }
+}
