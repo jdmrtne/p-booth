@@ -21,19 +21,6 @@
 </head>
 <body>
 
-  <!-- ─── LANDSCAPE GATE (all pages) ─── -->
-  <div class="landscape-gate" id="landscapeGate">
-    <div class="lg-phone-wrap">
-      <div class="lg-phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:2.4rem;height:2.4rem;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-      <div class="lg-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:1.3rem;height:1.3rem;"><path d="M21.5 2v6h-6"/><path d="M2.5 12a10 10 0 0 1 17-7.1L21.5 8"/></svg></div>
-    </div>
-    <div class="lg-title">Landscape Recommended</div>
-    <p class="lg-sub">p-booth looks best in landscape — rotate your phone for the full experience</p>
-    <div class="lg-badge"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M2.5 12a10 10 0 0 1 17-7.1L21.5 8"/></svg> Landscape mode recommended</div>
-    <div class="landscape-gate-actions">
-      <button class="landscape-gate-dismiss" onclick="dismissLandscapeGate()">Continue in Portrait →</button>
-    </div>
-  </div>
 
   <header class="site-header">
     <h1><span class="highlight">p-booth</span></h1>
@@ -62,30 +49,6 @@
   <script src="js/icons.js"></script>
   <script src="js/layout.js"></script>
   <script>
-    // ── Landscape gate (soft — dismissable) ──
-    let _gateDismissed = false;
-    function isMobileTouch() {
-      return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900;
-    }
-    function isPortrait() {
-      if (screen.orientation?.type) return screen.orientation.type.startsWith('portrait');
-      return window.innerHeight > window.innerWidth;
-    }
-    function checkLandscape() {
-      const gate = document.getElementById('landscapeGate');
-      if (!gate || _gateDismissed) return;
-      gate.classList.toggle('visible', isMobileTouch() && isPortrait());
-    }
-    function dismissLandscapeGate() {
-      _gateDismissed = true;
-      const gate = document.getElementById('landscapeGate');
-      if (gate) gate.classList.remove('visible');
-    }
-    checkLandscape();
-    window.addEventListener('resize', checkLandscape);
-    window.addEventListener('orientationchange', () => setTimeout(checkLandscape, 300));
-    if (screen.orientation) screen.orientation.addEventListener('change', () => setTimeout(checkLandscape, 300));
-
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(() => {});

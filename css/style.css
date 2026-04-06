@@ -524,22 +524,28 @@ canvas#snapshot {
 /* ─── UPLOAD MODE ─── */
 .upload-mode-container {
   background: var(--surface); border: 2px solid var(--border);
-  border-radius: var(--radius-lg); padding: 24px;
+  border-radius: var(--radius-lg); padding: 20px;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
-.upload-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.upload-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-shrink: 0; }
 .upload-header-icon { font-size: 2rem; }
 .upload-header h3 { font-size: 1rem; font-weight: 900; color: var(--text); }
 .upload-header p  { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
 
-.upload-slots-grid { display: grid; gap: 10px; margin-bottom: 16px; }
+.upload-slots-grid { display: grid; gap: 10px; flex: 1; min-height: 0; align-content: stretch; }
 .upload-slot {
-  aspect-ratio: 4/3; border-radius: var(--radius);
+  border-radius: var(--radius);
   border: 2px dashed rgba(168,85,247,.25);
   background: linear-gradient(135deg, #fef0f6, #f4efff);
   position: relative; overflow: hidden; cursor: pointer;
   transition: border-color var(--transition), transform var(--transition);
   -webkit-tap-highlight-color: transparent;
+  min-height: 0;
 }
 .upload-slot:hover { border-color: var(--pink); transform: scale(1.01); }
 .upload-slot:active { transform: scale(0.98); }
@@ -567,9 +573,9 @@ canvas#snapshot {
   -webkit-tap-highlight-color: transparent;
 }
 .upload-slot-remove:hover { background: rgba(220,20,50,1); }
-.upload-bulk-wrap { display: flex; justify-content: center; margin-bottom: 12px; }
+.upload-bulk-wrap { display: flex; justify-content: center; margin-bottom: 12px; flex-shrink: 0; }
 .upload-bulk-btn { width: 100%; font-size: 0.78rem; border-style: dashed; border-width: 2px; }
-.upload-progress-wrap { margin-bottom: 4px; }
+.upload-progress-wrap { margin-bottom: 4px; flex-shrink: 0; }
 .upload-progress-bar { height: 6px; background: rgba(168,85,247,.12); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
 .upload-progress-fill {
   height: 100%; width: 0%;
@@ -577,7 +583,7 @@ canvas#snapshot {
   border-radius: 3px; transition: width 0.4s cubic-bezier(.4,0,.2,1);
 }
 .upload-progress-label { font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-align: center; }
-.upload-slot-reorder-hint { font-size: .63rem; color: var(--text-muted); font-weight: 600; text-align: center; padding: 4px 0 0; display: none; }
+.upload-slot-reorder-hint { font-size: .63rem; color: var(--text-muted); font-weight: 600; text-align: center; padding: 4px 0 6px; display: none; flex-shrink: 0; }
 .upload-slot-reorder-hint.visible { display: block; animation: fadeInUp .3s ease; }
 
 /* ─── REARRANGE VIEW ─── */
@@ -624,6 +630,8 @@ canvas#snapshot {
   border-style: solid;
   border-color: var(--pink);
   cursor: grab;
+  touch-action: none; /* prevents browser scroll from stealing touchmove before our handlers run */
+  user-select: none;
 }
 .rearrange-slot.filled:hover {
   border-color: var(--pink);
@@ -828,7 +836,7 @@ canvas#snapshot {
 
   .mobile-thumbs { display: flex !important; gap: 7px; justify-content: center; margin-top: 12px; }
 
-  .upload-slots-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  /* upload-slots-grid columns are set by JS per layout config — no override here */
   .upload-mode-container { padding: 16px; }
 
   .rearrange-container { padding: 16px; }
@@ -868,10 +876,11 @@ canvas#snapshot {
    P-BOOTH v4 PATCH — UI/UX FIXES
    ═══════════════════════════════════════════════════════════════════ */
 
-/* ─── Upload & Rearrange: always scrollable, nothing gets clipped ── */
+/* ─── Upload & Rearrange: flex column, fill height, no scroll on desktop ── */
 #uploadModeView {
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
 }
 #rearrangeView {
   overflow: hidden !important;
@@ -2051,8 +2060,8 @@ canvas#snapshot {
 
   /* ── Upload slots ── */
   .upload-mode-container { padding: 10px 8px !important; }
-  .upload-slots-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
-  .upload-slot { min-height: 90px !important; font-size: 0.72rem !important; }
+  /* upload-slots-grid columns follow JS layout config — no override */
+  .upload-slot { min-height: unset !important; font-size: 0.72rem !important; }
 
   /* ── Rearrange ── */
   .rearrange-container { padding: 10px 8px !important; }
@@ -2494,16 +2503,20 @@ canvas#snapshot {
 
   /* Make upload slots easier to tap */
   .upload-slot { min-height: 100px; cursor: pointer; }
-  .drag-handle  { display: none !important; } /* hide desktop drag handle */
-  .touch-handle {
+
+  /* Keep drag handle visible on mobile — style it pink and big for easy grabbing */
+  .drag-handle {
     display: flex !important;
-    position: absolute; top: 5px; left: 5px; z-index: 10;
-    width: 20px; height: 20px; border-radius: 4px;
-    background: rgba(255,107,157,.6); color: #fff;
-    align-items: center; justify-content: center;
-    font-size: 10px;
+    width: 32px !important; height: 32px !important;
+    font-size: 16px !important;
+    background: rgba(255,107,157,.85) !important;
+    border-radius: 6px !important;
+    top: 3px !important; left: 3px !important;
   }
-  .upload-slot:not(.filled) .touch-handle { display: none !important; }
+  .upload-slot:not(.filled) .drag-handle { display: none !important; }
+
+  /* Prevent browser from stealing touchmove for scroll on filled slots */
+  .upload-slot.filled { touch-action: none; user-select: none; }
 }
 
 
@@ -2940,24 +2953,34 @@ canvas#snapshot {
   .mode-toggle-wrap {
     padding: 8px 10px 0 !important;
     gap: 6px !important;
-    align-items: stretch !important;
+    align-items: center !important;
   }
-  .mode-toggle { flex: 1 !important; }
+  .mode-toggle {
+    flex: 1 !important;
+    border-radius: 12px !important;
+  }
   .mode-btn {
     flex: 1 !important;
     text-align: center !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    padding: 10px 8px !important;
-    font-size: 0.72rem !important;
+    padding: 0 8px !important;
+    font-size: 0.76rem !important;
+    height: 44px !important;
+    border-radius: 10px !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
+  .mode-btn.active { border-radius: 10px !important; }
 
-  /* Floating action buttons next to mode toggle */
+  /* Floating action buttons next to mode toggle — same height as mode-btn */
   .mobile-only-btn {
-    flex: 0 0 46px !important;
-    width: 46px !important;
-    height: 46px !important;
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    height: 44px !important;
     padding: 0 !important;
     font-size: 1.1rem !important;
     border-radius: 12px !important;
@@ -3015,22 +3038,44 @@ canvas#snapshot {
     border-radius: var(--radius-lg) !important;
   }
 
-  /* 2-column grids for portrait */
+  /* Upload/rearrange grid columns follow JS layoutConfig — no override */
+  /* Override JS's 1fr row heights with auto so slots use their aspect-ratio */
   .upload-slots-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
+    grid-template-rows: auto !important;
+    gap: 6px !important;
   }
   .rearrange-grid {
-    gap: 10px !important;
+    grid-template-rows: auto !important;
+    gap: 6px !important;
   }
 
-  /* For 8-shot layouts: 3 columns */
-  .upload-slots-grid.cols-4 {
-    grid-template-columns: repeat(3, 1fr) !important;
+  /* Upload slots: landscape aspect-ratio matches the actual strip photo proportions */
+  .upload-slot {
+    aspect-ratio: 3/2 !important;
+    min-height: unset !important;
+    width: 100% !important;
+    height: auto !important;
   }
 
-  /* Larger upload slots */
-  .upload-slot { min-height: 100px !important; }
+  /* Bulk upload button — full width, compact */
+  .upload-bulk-wrap { width: 100% !important; }
+  .upload-bulk-wrap .upload-bulk-btn {
+    width: 100% !important;
+    font-size: 0.75rem !important;
+    padding: 9px 12px !important;
+  }
+
+  /* For 2-col layouts (double strip / 2×2): use full available width */
+  .upload-slots-grid[data-cols="2"],
+  .rearrange-grid[data-cols="2"] {
+    width: 100% !important;
+  }
+  /* For 1-col layouts: centered narrow strip */
+  .upload-slots-grid[data-cols="1"],
+  .rearrange-grid[data-cols="1"] {
+    width: 220px !important;
+    margin: 0 auto !important;
+  }
 
   /* Upload continue button */
   #uploadContinueBtn {
@@ -3315,54 +3360,47 @@ canvas#snapshot {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   MOBILE CAMERA PAGE — NO PREVIEW
+   MOBILE CAMERA PAGE — SHOW LIVE VIEWFINDER (like desktop)
    ══════════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  /* Hide the live camera viewfinder on mobile — fullscreen overlay handles it */
-  .camera-page .camera-viewfinder {
+@media (max-width: 900px) {
+  /* Always hide the start-card placeholder — viewfinder shows directly */
+  .camera-page .mobile-start-card {
     display: none !important;
   }
 
-  /* Replace viewfinder with a clean start-session card */
+  /* Show the camera viewfinder on mobile */
+  .camera-page .camera-viewfinder {
+    display: block !important;
+    width: 100% !important;
+    aspect-ratio: 4/3;
+    max-height: 52vw;
+    min-height: 160px;
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* Camera mode view: column layout with viewfinder */
   .camera-page #cameraModeView {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 12px;
     flex: 1;
     min-height: 0;
+    padding: 12px 16px 0;
+    overflow: hidden;
   }
 
-  /* Mobile start card — shown instead of camera preview */
-  .mobile-start-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 32px 24px 24px;
-    text-align: center;
-    background: linear-gradient(160deg, rgba(255,107,157,.06) 0%, rgba(168,85,247,.06) 100%);
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-lg);
-    margin: 12px;
-    flex: 1;
-  }
+  /* Show progress bar, status text, thumbnails on mobile */
+  .camera-page .shot-progress { display: block !important; }
+  .camera-page .status-msg    { display: block !important; }
+  .camera-page .mobile-thumbs { display: flex !important; gap: 7px; justify-content: center; }
 
-  /* Shot progress bar — make it visible and well spaced */
-  .camera-page .shot-progress {
-    margin: 8px 12px 4px;
-  }
-
-  /* Status message */
-  .camera-page .status-msg {
-    font-size: .75rem;
-    padding: 0 16px;
-    text-align: center;
-  }
-
-  /* Camera controls row — bigger, full width */
+  /* Camera controls row — full width */
   .camera-page .camera-controls {
-    padding: 12px;
+    width: 100%;
+    padding: 0;
     gap: 10px;
   }
   .camera-page .camera-controls .btn-lg {
@@ -3398,8 +3436,7 @@ canvas#snapshot {
     .layout-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
   }
 
-  /* Upload slots grid — 2 columns */
-  .upload-slots-grid { grid-template-columns: 1fr 1fr !important; gap: 12px; }
+  /* Upload slots grid — columns follow JS layoutConfig */
   .upload-slot { min-height: 110px; }
 
   /* Result page: stack vertically */
@@ -3416,44 +3453,8 @@ canvas#snapshot {
   .section-head h2 { font-size: 1.2rem; }
 }
 
-/* ── mobile-start-card: hidden on desktop, shown on mobile ── */
-.mobile-start-card { display: none; }
-
-@media (max-width: 768px) {
-  .mobile-start-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    padding: 28px 24px 20px;
-    text-align: center;
-    background: linear-gradient(160deg, rgba(255,107,157,.06) 0%, rgba(168,85,247,.06) 100%);
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-lg);
-    margin: 12px;
-    flex: 1;
-  }
-  .mobile-start-card .msc-icon {
-    width: 72px; height: 72px; border-radius: 22px;
-    background: linear-gradient(135deg, var(--pink), var(--purple));
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 8px 28px rgba(255,107,157,.35);
-    flex-shrink: 0;
-  }
-  .mobile-start-card .msc-icon svg { width: 2rem; height: 2rem; color: white; }
-  .mobile-start-card h3 { font-size: 1.15rem; font-weight: 900; color: var(--text); margin: 0; }
-  .mobile-start-card p {
-    font-size: .8rem; color: var(--text-muted); font-weight: 600;
-    margin: 0; max-width: 240px; line-height: 1.6;
-  }
-  .mobile-start-card .pose-badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--pink-dim); border: 1.5px solid var(--pink-border);
-    color: var(--pink); font-size: .72rem; font-weight: 800;
-    padding: 5px 14px; border-radius: 20px;
-  }
-}
+/* ── mobile-start-card: hidden everywhere ── */
+.mobile-start-card { display: none !important; }
 
 /* ══════════════════════════════════════════════════════════════════
    UPLOAD VIEW — STRIP-SHAPED LAYOUT (Desktop camera page)
@@ -3543,5 +3544,91 @@ canvas#snapshot {
   body.camera-page #uploadContinueBtn {
     flex-shrink: 0 !important;
     margin-top: 0 !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   REARRANGE VIEW — STRIP-SHAPED LAYOUT (Desktop camera page)
+   Matches the upload tab's centered strip look
+   ══════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
+  body.camera-page #rearrangeView {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  body.camera-page .rearrange-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding: 10px 14px !important;
+    height: 100%;
+    min-height: 0;
+    gap: 8px !important;
+    overflow: hidden !important;
+  }
+
+  /* Compact one-line header — full width */
+  body.camera-page .rearrange-header-row {
+    flex-shrink: 0;
+    width: 100% !important;
+    margin-bottom: 0 !important;
+    gap: 10px !important;
+  }
+  body.camera-page .rearrange-header-icon { font-size: 1.3rem !important; }
+  body.camera-page .rearrange-header-row h3 { font-size: 0.82rem !important; }
+  body.camera-page .rearrange-header-row p  { font-size: 0.65rem !important; margin-top: 1px !important; }
+
+  /* The strip grid: centered, paper-white — height driven by slot aspect-ratio, not flex-fill */
+  body.camera-page .rearrange-grid {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    width: auto !important;
+    margin: auto !important;      /* center both horizontally AND vertically */
+    gap: 4px !important;
+
+    background: #fff;
+    border-radius: 10px;
+    padding: 8px;
+    box-shadow: 0 6px 28px rgba(0,0,0,.13), 0 1px 4px rgba(0,0,0,.07);
+    border: 1px solid rgba(0,0,0,.06);
+    box-sizing: border-box;
+  }
+
+  /* Slots: natural 4:3 aspect-ratio so strip matches upload proportions */
+  body.camera-page .rearrange-slot {
+    aspect-ratio: 4/3 !important;
+    min-height: unset !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    border-radius: 6px !important;
+  }
+
+  /* Strip width: matches upload grid widths */
+  body.camera-page .rearrange-grid[data-cols="1"] {
+    width: 210px !important;
+  }
+  body.camera-page .rearrange-grid[data-cols="2"] {
+    width: 340px !important;
+  }
+
+  /* Hint & actions: stay compact at bottom */
+  body.camera-page .rearrange-drag-hint {
+    flex-shrink: 0;
+    font-size: 0.6rem !important;
+    padding: 0 !important;
+  }
+  body.camera-page .rearrange-actions {
+    flex-shrink: 0 !important;
+    width: 100% !important;
+    gap: 8px !important;
+    padding-top: 0 !important;
+  }
+  body.camera-page .rearrange-actions .btn {
+    font-size: 0.82rem !important;
   }
 }
