@@ -67,7 +67,9 @@ function safeSetPhotos(photos) {
   }
 }
 
+let _idbNavigating = false;
 function savePhotosToIDB(photos) {
+  _idbNavigating = true;
   const req = indexedDB.open('pbooth', 1);
   req.onupgradeneeded = e => e.target.result.createObjectStore('photos');
   req.onsuccess = e => {
@@ -78,6 +80,7 @@ function savePhotosToIDB(photos) {
       window.location.href = 'result.html';
     };
   };
+  req.onerror = () => { _idbNavigating = false; };
 }
 
 // ─── LANDSCAPE / MOBILE DETECTION ─────────────────────────────────
@@ -313,10 +316,6 @@ function switchMode(mode) {
     // Re-check landscape prompt (still required in upload mode too)
     checkAndShowLandscapePrompt();
     updateLivePreview();
-    const dGenWrap = document.getElementById('desktopGenerateWrap');
-    const dRearWrap = document.getElementById('desktopRearrangeActionsWrap');
-    if (dGenWrap)  dGenWrap.style.display  = 'flex';
-    if (dRearWrap) dRearWrap.style.display = 'none';
   }
 }
 
@@ -639,8 +638,6 @@ function updateUploadProgress() {
   if (progLbl)  progLbl.textContent    = `${filled} of ${total} photos selected`;
   const allFilled = filled >= total;
   if (contBtn) { contBtn.disabled = !allFilled; contBtn.style.opacity = allFilled ? '1' : '.5'; }
-  const desktopBtn = document.getElementById('desktopGenerateBtn');
-  if (desktopBtn) { desktopBtn.disabled = !allFilled; desktopBtn.style.opacity = allFilled ? '1' : '.5'; }
   if (hint)    hint.classList.toggle('visible', filled >= 2);
 }
 
@@ -686,8 +683,12 @@ async function continueFromUpload() {
   const btn = document.getElementById('uploadContinueBtn');
   if (btn) { btn.textContent = 'Preparing…'; btn.disabled = true; }
   const compressed = await Promise.all(uploadedPhotos.map(p => p ? compressImage(p, 900, 0.78) : Promise.resolve(null)));
+  // Clear any stale IDB flag from a previous session so it never blocks navigation
+  sessionStorage.removeItem('photobooth_photos_idb');
   safeSetPhotos(compressed);
-  if (!sessionStorage.getItem('photobooth_photos_idb')) window.location.href = 'result.html';
+  // Give sessionStorage a tick to flush, then navigate (skip if IDB is handling it)
+  await new Promise(r => setTimeout(r, 60));
+  if (!_idbNavigating) window.location.href = 'result.html';
 }
 
 // ─── CAMERA SESSION ───────────────────────────────────────────────
@@ -874,10 +875,10 @@ function showRearrangeView(fromStorage) {
   if (uploadView)  uploadView.style.display  = 'none';
   if (rearrangeV)  rearrangeV.style.display  = '';
 
-  const dGenWrap = document.getElementById('desktopGenerateWrap');
-  const dRearWrap = document.getElementById('desktopRearrangeActionsWrap');
-  if (dGenWrap)  dGenWrap.style.display  = 'none';
-  if (dRearWrap) dRearWrap.style.display = 'flex';
+  // Show action buttons at the bottom of the strip preview panel
+  const rearrangeActions = document.getElementById('rearrangeActions');
+  if (rearrangeActions) rearrangeActions.style.display = 'grid';
+  document.body.classList.add('rearrange-active');
 
   const title    = document.getElementById('rearrangeTitle');
   const subtitle = document.getElementById('rearrangeSubtitle');
@@ -1116,12 +1117,14 @@ function swapCapturedPhotos(a, b) {
 async function buildStrip() {
   const btn = document.getElementById('buildStripBtn');
   if (btn) { btn.textContent = 'Preparing…'; btn.disabled = true; }
-
   const compressed = await Promise.all(capturedPhotos.map(p => p ? compressImage(p, 900, 0.78) : Promise.resolve(null)));
+  // Clear any stale IDB flag so it never blocks navigation
+  sessionStorage.removeItem('photobooth_photos_idb');
   safeSetPhotos(compressed);
-  await sleep(100);
-  if (!sessionStorage.getItem('photobooth_photos_idb')) window.location.href = 'result.html';
+  await new Promise(r => setTimeout(r, 60));
+  window.location.href = 'result.html';
 }
+
 
 function retakeFromRearrange() {
   capturedPhotos = new Array(layoutConfig.shots).fill(null);
@@ -1136,6 +1139,11 @@ function retakeFromRearrange() {
   if (rearrangeV) rearrangeV.style.display = 'none';
   if (modeWrap)   modeWrap.style.display   = '';
 
+  // Hide action buttons and remove rearrange body state
+  const rearrangeActions = document.getElementById('rearrangeActions');
+  if (rearrangeActions) rearrangeActions.style.display = 'none';
+  document.body.classList.remove('rearrange-active');
+
   // FIX: Return to upload mode if that's where the user came from
   if (_rearrangeFromUpload) {
     _rearrangeFromUpload = false;
@@ -1148,20 +1156,11 @@ function retakeFromRearrange() {
     uploadedPhotos = new Array(layoutConfig.shots).fill(null);
     buildUploadSlots();
     updateLivePreview();
-    const dGenWrap2 = document.getElementById('desktopGenerateWrap');
-    const dRearWrap2 = document.getElementById('desktopRearrangeActionsWrap');
-    if (dGenWrap2)  dGenWrap2.style.display  = 'flex';
-    if (dRearWrap2) dRearWrap2.style.display = 'none';
     return;
   }
 
   if (cameraView) cameraView.style.display = '';
   if (uploadView)  uploadView.style.display  = 'none';
-
-  const dGenWrap3 = document.getElementById('desktopGenerateWrap');
-  const dRearWrap3 = document.getElementById('desktopRearrangeActionsWrap');
-  if (dGenWrap3)  dGenWrap3.style.display  = 'none';
-  if (dRearWrap3) dRearWrap3.style.display = 'none';
 
   currentMode = 'camera';
   document.getElementById('modeCameraBtn')?.classList.add('active');
@@ -1697,6 +1696,8 @@ window.removeUploadedPhoto = removeUploadedPhoto;
 window.handleSingleUpload  = handleSingleUpload;
 window.buildStrip          = buildStrip;
 window.retakeFromRearrange = retakeFromRearrange;
+window.getUploadedPhotos   = () => uploadedPhotos;
+window.getCapturedPhotos   = () => capturedPhotos;
 window.togglePause         = togglePause;
 window.pauseSession        = pauseSession;
 window.resumeSession       = resumeSession;

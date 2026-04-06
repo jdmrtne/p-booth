@@ -6,6 +6,7 @@
   <title>p-booth — Camera</title>
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
+  <meta name="screen-orientation" content="portrait">
   <meta name="theme-color" content="#ff6b9d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -79,6 +80,23 @@
     .mobile-only-btn { display: none; }
     @media (max-width: 768px) { .mobile-only-btn { display: inline-flex !important; } }
     @media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) { .mobile-only-btn { display: inline-flex !important; } }
+    /* desktop-only: shown on desktop, hidden on mobile */
+    .desktop-only { display: none; }
+    @media (min-width: 769px) { .desktop-only { display: flex; } }
+    /* desktop-hidden: hidden on desktop, shown normally on mobile */
+    @media (min-width: 769px) { .desktop-hidden { display: none !important; } }
+    /* right-panel action buttons */
+    #desktopGenerateWrap, #desktopRearrangeActionsWrap {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 12px 12px;
+      flex-shrink: 0;
+    }
+    @media (min-width: 769px) {
+      #desktopGenerateWrap { display: flex; }
+      #desktopRearrangeActionsWrap { display: flex; }
+    }
     /* Legacy alias */
     .mobile-customize-btn { display: none; }
     @media (max-width: 768px) { .mobile-customize-btn { display: inline-flex !important; } }
@@ -190,6 +208,11 @@
     }
     .paused-resume-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(255,107,157,.6); }
     .paused-resume-btn:active { transform: scale(0.97); }
+
+    /* ─── LANDSCAPE OVERLAY: hidden on touch/mobile — orientation is locked programmatically ─── */
+    @media (pointer: coarse) {
+      #landscapeOverlay { display: none !important; }
+    }
 
     /* ─── LANDSCAPE OVERLAY ─── */
     #landscapeOverlay {
@@ -440,7 +463,7 @@
             </div>
             <div class="upload-slots-grid" id="uploadSlotsGrid"></div>
             <p class="upload-slot-reorder-hint" id="reorderHint">⟺ Drag to rearrange · Long-press or use the ⠿ handle on mobile</p>
-            <button class="btn btn-primary btn-lg" id="uploadContinueBtn" disabled onclick="continueFromUpload()" style="margin-top:8px;width:100%;opacity:.5;flex-shrink:0;"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Generate Strip</button>
+            <button class="btn btn-primary btn-lg desktop-hidden" id="uploadContinueBtn" disabled onclick="continueFromUpload()" style="margin-top:8px;width:100%;opacity:.5;flex-shrink:0;"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Generate Strip</button>
           </div>
         </div>
 
@@ -457,7 +480,7 @@
             <div class="rearrange-grid" id="rearrangeGrid"></div>
             <p class="rearrange-drag-hint" id="rearrangeTapHint">⟺ Drag to reorder · Use the ⠿ handle to drag</p>
 
-            <div class="rearrange-actions">
+            <div class="rearrange-actions desktop-hidden">
               <button class="btn btn-secondary" onclick="retakeFromRearrange()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg> Retake All</button>
               <button class="btn btn-primary btn-lg" id="buildStripBtn" onclick="buildStrip()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Build Strip</button>
             </div>
@@ -473,6 +496,15 @@
           <div class="live-preview-wrap" id="livePreviewWrap" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
             <canvas id="liveStripCanvas" style="max-width:100%;max-height:100%;width:auto;height:auto;display:none;"></canvas>
             <div class="live-preview-placeholder" id="livePreviewPlaceholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:2.5rem;height:2.5rem;opacity:.4;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><p>Preview appears here</p></div>
+          </div>
+          <!-- Desktop: Generate Strip button (upload view) -->
+          <div id="desktopGenerateWrap">
+            <button class="btn btn-primary btn-lg" id="desktopGenerateBtn" disabled onclick="continueFromUpload()" style="width:100%;opacity:.5;"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Generate Strip</button>
+          </div>
+          <!-- Desktop: Retake + Build Strip buttons (rearrange view) -->
+          <div id="desktopRearrangeActionsWrap">
+            <button class="btn btn-primary btn-lg" id="desktopBuildStripBtn" onclick="buildStrip()" style="width:100%;"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Build Strip</button>
+            <button class="btn btn-secondary" onclick="retakeFromRearrange()" style="width:100%;"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg> Retake All</button>
           </div>
         </div>
       </div>
@@ -632,35 +664,27 @@
   </div>
   <!-- END FULLSCREEN CAMERA OVERLAY -->
 
+  <script src="js/orientation-lock.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/camera.js"></script>
   <script src="js/install-banner.js"></script>
   <script>
-    // ── Landscape overlay: auto-dismisses when user rotates to landscape ──
+    // ── Portrait lock: re-apply after any orientation change that might have slipped through ──
     (function() {
-      const overlay = document.getElementById('landscapeOverlay');
-      if (!overlay) return;
-
-      function checkRotated() {
-        const isLandscape = screen.orientation
-          ? screen.orientation.type.startsWith('landscape')
-          : window.innerWidth > window.innerHeight;
-
-        if (isLandscape && overlay.classList.contains('visible')) {
-          overlay.classList.remove('visible');
-          if (window._pendingCameraSession) {
-            window._pendingCameraSession = false;
-            if (typeof openFullscreenCamera === 'function') openFullscreenCamera();
-          }
+      function reapplyPortraitIfNeeded() {
+        // Only re-lock portrait when the FSC camera is NOT active
+        if (!document.body.classList.contains('fsc-camera-active')) {
+          if (typeof window.lockPortrait === 'function') window.lockPortrait();
         }
       }
 
-      window.addEventListener('resize', checkRotated);
-      window.addEventListener('orientationchange', () => setTimeout(checkRotated, 300));
-      if (screen.orientation) screen.orientation.addEventListener('change', () => setTimeout(checkRotated, 300));
+      window.addEventListener('orientationchange', () => setTimeout(reapplyPortraitIfNeeded, 350));
+      if (screen.orientation) {
+        screen.orientation.addEventListener('change', () => setTimeout(reapplyPortraitIfNeeded, 350));
+      }
 
-      // Provide a no-op dismiss function (button removed, but guard against any leftover calls)
+      // Legacy no-op guard (in case any old HTML still calls this)
       window.dismissCameraLandscapeOverlay = function() {};
     })();
 

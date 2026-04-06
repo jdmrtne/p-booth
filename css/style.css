@@ -1307,12 +1307,14 @@ canvas#snapshot {
 
 /* ── THUMBNAIL STRIP ───────────────────────────────────────────── */
 .fsc-thumb-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  align-items: center;
-  max-height: 220px;
-  overflow: hidden;
+  /* Layout set dynamically by fscBuildThumbs() via inline grid styles.
+     These are the defaults / fallbacks. */
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  align-content: start;
+  /* No max-height cap — all shots must be visible */
+  overflow: visible;
 }
 .fsc-thumb {
   width: 50px; height: 50px;
@@ -3169,16 +3171,8 @@ canvas#snapshot {
   .fsc-shutter-inner { width: 74px !important; height: 74px !important; }
   .fsc-shutter::after { width: 92px !important; height: 92px !important; }
 
-  /* Thumbs go horizontal across the bottom in portrait */
-  .fsc-thumb-strip {
-    flex-direction: row !important;
-    gap: 6px !important;
-    max-height: none !important;
-    max-width: 56px !important;
-    overflow: hidden !important;
-    flex-wrap: nowrap !important;
-  }
-  .fsc-thumb { width: 44px !important; height: 44px !important; }
+  /* Portrait shooting is blocked — no portrait overrides needed for fsc-thumb-strip.
+     Thumb size is controlled inline by fscBuildThumbs(). */
 }
 
 
