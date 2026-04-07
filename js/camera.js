@@ -412,7 +412,7 @@ function buildUploadSlots() {
 
   const cols = layoutConfig.cols || 1;
   const rows = layoutConfig.rows || layoutConfig.shots;
-  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
   grid.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
   grid.dataset.cols = cols;
   grid.dataset.rows = rows;

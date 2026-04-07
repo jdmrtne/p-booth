@@ -30,7 +30,7 @@
     canvas#snapshot { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none; }
 
     /* Upload/Rearrange views: flex column, fill height, no scroll on desktop */
-    #uploadModeView  { flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; }
+    #uploadModeView  { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; }
     #rearrangeView   { flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; }
     #cameraModeView  { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
 
@@ -150,15 +150,19 @@
     @media (max-width: 768px) {
       #uploadModeView .upload-mode-container { padding-bottom: max(80px, env(safe-area-inset-bottom, 80px)); }
       /* Ensure the continue / build-strip buttons are never hidden under the keyboard */
-      #uploadContinueBtn, #buildStripBtn {
+      #uploadContinueBtn {
         position: sticky;
         bottom: max(12px, env(safe-area-inset-bottom, 12px));
         z-index: 5;
       }
+      #buildStripBtn {
+        position: relative;
+        z-index: 5;
+      }
       /* Slightly bigger tap targets for rearrange action buttons */
-      .rearrange-actions .btn { min-height: 48px; }
+      .rearrange-actions .btn { min-height: 50px; }
       /* Prevent horizontal overflow caused by long button labels */
-      .rearrange-actions { flex-wrap: wrap; gap: 8px; }
+      .rearrange-actions { flex-direction: column !important; gap: 10px !important; padding: 12px 0 max(12px, env(safe-area-inset-bottom, 12px)) !important; }
       /* Mode-toggle and icon buttons: adequate tap size */
       .mode-toggle-wrap .btn { min-width: 44px; min-height: 44px; }
       /* Mobile customize / preview icon buttons */
@@ -448,13 +452,11 @@
           <div class="upload-mode-container">
             <div class="upload-header">
               <div class="upload-header-icon ico-badge"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-              <div>
+              <div class="upload-header-text">
                 <h3 id="uploadTitle">Upload Your Photos</h3>
                 <p id="uploadSubtitle">Select photos from your device</p>
               </div>
-            </div>
-            <div class="upload-bulk-wrap">
-              <button class="btn btn-secondary upload-bulk-btn" onclick="triggerBulkUpload()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Select All Photos at Once</button>
+              <button class="btn btn-secondary upload-bulk-btn" onclick="triggerBulkUpload()" style="flex-shrink:0;white-space:nowrap;"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.75rem;height:0.75rem;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Select All Photos at Once</button>
               <input type="file" id="bulkFileInput" accept="image/*" multiple style="display:none;" onchange="handleBulkUpload(event)">
             </div>
             <div class="upload-progress-wrap" id="uploadProgressWrap" style="display:none;">
