@@ -581,9 +581,11 @@
        ═══════════════════════════════════════════════════════════════ -->
   <div id="fullscreenCameraOverlay">
 
-    <!-- Live video feed — fills entire screen -->
-    <video id="fscVideo" autoplay playsinline muted></video>
-    <canvas id="fscCaptureCanvas"></canvas>
+    <!-- Viewport: sized to exact strip photo ratio (1 : 0.6452 landscape) -->
+    <div id="fscViewport">
+      <video id="fscVideo" autoplay playsinline muted></video>
+      <canvas id="fscCaptureCanvas"></canvas>
+    </div>
 
     <!-- TOP CONTROLS -->
     <div class="fsc-top">
@@ -604,14 +606,6 @@
           <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
         </svg>
       </button>
-    </div>
-
-    <!-- FRAME GUIDE — helps users align themselves -->
-    <div class="fsc-frame-guide" id="fscFrameGuide">
-      <div class="fsc-corner fsc-tl"></div>
-      <div class="fsc-corner fsc-tr"></div>
-      <div class="fsc-corner fsc-bl"></div>
-      <div class="fsc-corner fsc-br"></div>
     </div>
 
     <!-- COUNTDOWN OVERLAY -->

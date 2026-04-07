@@ -1558,18 +1558,30 @@ function fscCaptureFrame() {
   const video  = document.getElementById('fscVideo');
   const canvas = document.getElementById('fscCaptureCanvas');
   if (!video || !canvas) return null;
-  const w = video.videoWidth  || 1280;
-  const h = video.videoHeight || 960;
-  canvas.width  = w;
-  canvas.height = h;
+  const vw = video.videoWidth  || 1280;
+  const vh = video.videoHeight || 960;
+
+  // Center-crop to strip photo aspect ratio (1 : 0.6452) — matches the viewport preview exactly
+  const TARGET_RATIO = 1 / 0.6452; // ≈ 1.55 landscape
+  const videoRatio   = vw / vh;
+  let srcX = 0, srcY = 0, srcW = vw, srcH = vh;
+  if (videoRatio > TARGET_RATIO) {
+    srcW = Math.round(vh * TARGET_RATIO);
+    srcX = Math.round((vw - srcW) / 2);
+  } else {
+    srcH = Math.round(vw / TARGET_RATIO);
+    srcY = Math.round((vh - srcH) / 2);
+  }
+
+  canvas.width  = srcW;
+  canvas.height = srcH;
   const ctx = canvas.getContext('2d');
-  // Front camera: save mirrored (matches the preview — what you see is what you get)
-  // Rear camera: save natural orientation
+  // Front camera: mirror to match preview
   if (fscFacingMode === 'user') {
-    ctx.translate(w, 0);
+    ctx.translate(srcW, 0);
     ctx.scale(-1, 1);
   }
-  ctx.drawImage(video, 0, 0, w, h);
+  ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   return canvas.toDataURL('image/jpeg', 0.85);
 }

@@ -1102,6 +1102,21 @@ canvas#snapshot {
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* ── VIEWPORT — sized to exact strip photo ratio (1 : 0.6452) ──── */
+#fscViewport {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  /* landscape: width : height = 1 : 0.6452 ≈ 1.55:1 */
+  /* Fill as much screen as possible while keeping strip ratio */
+  width:  min(100vw, calc(100vh / 0.6452));
+  height: min(calc(100vw * 0.6452), 100vh);
+  overflow: hidden;
+  z-index: 1;
+  border-radius: 3px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.72); /* dim everything outside */
+}
+
 /* ── VIDEO FEED ────────────────────────────────────────────────── */
 #fscVideo,
 #fscCaptureCanvas {
@@ -1188,17 +1203,12 @@ canvas#snapshot {
   letter-spacing: 0.1em; text-transform: uppercase;
 }
 
-/* ── FRAME GUIDE ───────────────────────────────────────────────── */
+/* ── FRAME GUIDE — corner brackets at viewport edges ───────────── */
 .fsc-frame-guide {
   position: absolute;
   z-index: 4;
   pointer-events: none;
-  /* Positioned by JS based on layout */
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  /* Default portrait frame */
-  width: min(80vw, calc(85vh * 0.56));
-  height: min(calc(80vw * 1.4), 85vh);
+  inset: 0; /* fills the viewport exactly */
 }
 .fsc-corner {
   position: absolute;
@@ -1212,18 +1222,7 @@ canvas#snapshot {
 .fsc-bl { bottom: 0; left: 0;  border-bottom-width: 2.5px; border-left-width: 2.5px;  border-radius: 0 0 0 3px; }
 .fsc-br { bottom: 0; right: 0; border-bottom-width: 2.5px; border-right-width: 2.5px; border-radius: 0 0 3px 0; }
 
-/* Subtle vignette overlay */
-.fsc-frame-guide::before {
-  content: '';
-  position: absolute;
-  inset: -2000px;
-  background: rgba(0,0,0,0.28);
-  z-index: -1;
-  /* Punch out a hole in the center */
-  box-shadow: 0 0 0 2000px rgba(0,0,0,0.28);
-  border-radius: 2px;
-  pointer-events: none;
-}
+/* (vignette handled by #fscViewport box-shadow) */
 
 /* ── COUNTDOWN ─────────────────────────────────────────────────── */
 .fsc-countdown {
@@ -1458,13 +1457,7 @@ canvas#snapshot {
   .fsc-shutter, .fsc-shutter-ring { width: 74px; height: 74px; }
   .fsc-shutter-inner { width: 58px; height: 58px; }
 }
-@media (min-width: 900px) {
-  /* Desktop: center the frame guide for widescreen */
-  .fsc-frame-guide {
-    width: min(55vh, 450px);
-    height: min(calc(55vh * 1.35), 600px);
-  }
-}
+/* Desktop uses same full-fill rule — no override needed */
 
 /* ═══════════════════════════════════════════════════════════════════
    CAPTURE MODE TOGGLE  (Auto / Manual)
