@@ -3652,3 +3652,95 @@ canvas#snapshot {
     font-size: 0.82rem !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   FSC CAMERA — LANDSCAPE MOBILE
+   • Shutter button → right-side vertical strip (right thumb reach)
+   • Thumbnail strip → left-side vertical strip
+   Applies to touch devices in landscape only.
+   ══════════════════════════════════════════════════════════════════ */
+@media (orientation: landscape) and (pointer: coarse) {
+
+  /* ── RIGHT STRIP: shutter only ──────────────────────────────── */
+  .fsc-bottom {
+    /* Reposition to right edge, full height */
+    bottom: 0;
+    top: 0;
+    left: auto;
+    right: 0;
+    width: 110px;
+    padding: 20px 14px;
+    padding-right: max(14px, env(safe-area-inset-right, 14px));
+    flex-direction: column;
+    justify-content: center;   /* shutter vertically centered */
+    align-items: center;
+    background: linear-gradient(to left,
+      rgba(0,0,0,0.72) 0%,
+      rgba(0,0,0,0.22) 70%,
+      transparent 100%);
+  }
+
+  /* Hide the side-slot placeholders inside the right strip —
+     thumbnails live in their own left strip now */
+  .fsc-bottom .fsc-bottom-side {
+    display: none;
+  }
+
+  /* ── LEFT STRIP: thumbnails ─────────────────────────────────── */
+  /* position:fixed inside a transformed ancestor → anchors to overlay */
+  .fsc-bottom-side:first-child {
+    display: flex !important;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 110px;
+    padding: 20px 16px 36px max(20px, env(safe-area-inset-left, 20px));
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;  /* pin to bottom */
+    background: linear-gradient(to right,
+      rgba(0,0,0,0.65) 0%,
+      rgba(0,0,0,0.18) 75%,
+      transparent 100%);
+    z-index: 11;
+  }
+
+  /* Thumb strip: stack vertically, aligned to bottom */
+  .fsc-thumb-strip {
+    align-content: end;
+    justify-content: end;
+  }
+
+  /* ── SHUTTER WRAP ───────────────────────────────────────────── */
+  .fsc-shutter-wrap {
+    flex-shrink: 0;
+  }
+
+  /* Mode toggle: stack vertically to fit the narrow column */
+  .fsc-mode-toggle {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .fsc-mode-btn {
+    font-size: 0.6rem;
+    padding: 5px 10px;
+    white-space: nowrap;
+  }
+
+  /* Shutter meta below button */
+  .fsc-shutter-meta {
+    margin-top: 8px;
+    text-align: center;
+  }
+  .fsc-progress-label { font-size: 0.72rem; }
+  .fsc-mode-indicator  { font-size: 0.52rem; max-width: 90px; text-align: center; }
+
+  /* ── CAPTURED FEEDBACK: leave both side strips clear ────────── */
+  .fsc-captured-feedback {
+    inset: 0 110px 0 110px;
+  }
+}
